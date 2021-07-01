@@ -1,0 +1,19 @@
+#!/bin/bash
+if rfkill list bluetooth | grep -q 'yes$' ; then 
+    sudo rfkill unblock 1
+    sudo rfkill unblock bluetooth
+    notify-send "bluetooth on"
+    sleep 3
+    notify-send "bluetooth connecting"
+    bluetoothctl power on
+    sleep 1
+    bluetoothctl connect FC:58:FA:C8:40:46
+    notify-send "bluetooth connected : Infinity Glide 120"
+else
+    bluetoothctl disconnect FC:58:FA:C8:40:46
+    notify-send "bluetooth disconnected : Infinity Glide 120"
+    sleep 1
+    bluetoothctl power off
+    sudo rfkill block 1
+    notify-send "bluetooth off"
+fi
