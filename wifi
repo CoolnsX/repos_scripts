@@ -1,9 +1,0 @@
-#!/bin/bash
-if rfkill list wifi | grep -q 'yes$' ; then
-   sudo rfkill unblock 0
-   notify-send "wifi on"
-else
-   sudo rfkill block 0
-   notify-send "wifi off"
-fi
-

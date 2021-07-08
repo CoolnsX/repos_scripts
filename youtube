@@ -21,7 +21,7 @@ part_video()
 	video=$1
 	printf "${c_magenta}Enter Starting Point(hh:mm:ss)or(mm:ss)${c_reset}:"
 	read start
-	printf "${c_yellow}Enter Duration(seconds):${c_cyan}"
+	printf "${c_yellow}Enter Upto Seconds:${c_cyan}"
 	read dur
 	ffmpeg -i $(youtube-dl -f best --get-url "$video") -ss $start -t $dur $HOME/Videos/$(date +%s).mp4
 }
