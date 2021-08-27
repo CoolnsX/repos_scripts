@@ -181,7 +181,7 @@ open_episode () {
 	case $video_url in
 		*streamtape*)
 			# If direct download not available then scrape streamtape.com
-			BROWSER=${BROWSER:-firefox}
+			BROWSER=${BROWSER:-google-chrome-stable}
 			printf "scraping streamtape.com\n"
 			video_url=$(curl -s "$video_url" | sed -n -E '
 				/^<script>document/{
@@ -198,6 +198,7 @@ open_episode () {
 		" "$logfile" > "${logfile}.new" && mv "${logfile}.new" "$logfile"
 
 		setsid -f $player_fn "$video_url" >/dev/null 2>&1
+		printf "$video_url\n"
 	else
 		printf "Downloading episode $episode ...\n"
 		printf "%s\n" "$video_url"
@@ -219,6 +220,7 @@ open_episode () {
 trap "printf '$c_reset'" INT HUP
 
 dep_ch "$player_fn" "curl" "sed" "grep"
+alias v="nvim"
 
 # option parsing
 is_download=0
