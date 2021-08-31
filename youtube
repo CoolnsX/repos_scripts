@@ -14,9 +14,7 @@ c_reset="\033[0m"
 #function to download full video
 full_video()
 {
-	video=$1
-	youtube-dl -f best "$video"
-
+	youtube-dl -f best "$1"
 }
 
 # function to download part of a video and also split it for SNS...
@@ -29,14 +27,14 @@ part_video()
 	read dur
 	printf "Do you want to split video for SNS?? (y or n) :"
 	read x
+	printf "\n\n"
 	if [ $x == 'n' ]; then		
 		ffmpeg -i $(youtube-dl -f best --get-url "$video") -ss $start -t $dur $HOME/Videos/$(date +%T_%F).mp4
 	else
 		out=$(date +%T_%F)
-		ffmpeg -i $(youtube-dl -f best --get-url "$video") -map 0 -codec copy -f segment -segment_time 30 -ss $start -t $dur $HOME/Videos/${out}_%03d.mp4
+		ffmpeg -i $(youtube-dl -f best --get-url "$video") -map 0 -codec copy -f segment -segment_time 30 -ss $start -t $dur $HOME/Videos/${out}_%02d.mp4
 	fi
-	}
-
+}
 
 #program starts from here..
 
