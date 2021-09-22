@@ -23,6 +23,7 @@ help_text () {
 	USAGE: $prog <query>
 	 -h	 show this help text
 	 -d	 download episode
+	 -l	 watch and download episode (data saver mode)
 	 -H	 continue where you left off
 	EOF
 }
@@ -72,8 +73,13 @@ get_links () {
 	curl -s "https://gogoanime.pe/$anime_id-episode-$ep_no" |
 	sed -n -E 's_^[[:space:]]*<li class="dowloads"><a href="([^"]*)".*_\1_p')
 
+	if [ $is_low -eq 0 ]; then
 	curl -s "$dpage_url" |
-	sed -n -E 's/^[[:space:]]*href="([^"]*)"\ download>Download/\1/p' | sed 1q
+	sed -n -E 's/^[[:space:]]*href="([^"]*\.mp4)".*/\1/p' | sed 1q
+	else
+	curl -s "$dpage_url" |
+	sed -n -E 's/^[[:space:]]*href="([^"]*\.mp4)".*/\1/p' | grep "sd"
+	fi
 }
 
 dep_ch () {
@@ -220,12 +226,12 @@ open_episode () {
 trap "printf '$c_reset'" INT HUP
 
 dep_ch "$player_fn" "curl" "sed" "grep"
-alias v="nvim"
 
 # option parsing
 is_download=0
+is_low=0
 scrape=query
-while getopts 'hdH' OPT; do
+while getopts 'hdlH' OPT; do
 	case $OPT in
 		h)
 			help_text
@@ -233,6 +239,9 @@ while getopts 'hdH' OPT; do
 			;;
 		d)
 			is_download=1
+			;;
+		l)
+			is_low=1
 			;;
 		H)
 			scrape=history
