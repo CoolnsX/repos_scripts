@@ -171,8 +171,6 @@ open_episode () {
 	anime_id=$1
 	episode=$2
 
-	# clear the screen
-	printf '\x1B[2J\x1B[1;1H'
 	if [ $episode -lt 1 ] || [ $episode -gt $last_ep_number ]; then
 		err "Episode out of range"
 		printf "${c_blue}Choose episode $c_cyan[1-%d]$c_reset:$c_green " $last_ep_number
@@ -180,22 +178,9 @@ open_episode () {
 		printf "$c_reset"
 	fi
 
-	printf "Getting data for episode %d\n" $episode
+	printf "\nGetting data for episode %d\n" $episode
 
 	video_url=$(get_links "$anime_id" "$episode")
-
-	case $video_url in
-		*streamtape*)
-			# If direct download not available then scrape streamtape.com
-			BROWSER=${BROWSER:-google-chrome-stable}
-			printf "scraping streamtape.com\n"
-			video_url=$(curl -s "$video_url" | sed -n -E '
-				/^<script>document/{
-				s/^[^"]*"([^"]*)" \+ '\''([^'\'']*).*/https:\1\2\&dl=1/p
-				q
-				}
-			');;
-	esac
 
 	if [ $is_download -eq 0 ]; then
 		# write anime and episode number
