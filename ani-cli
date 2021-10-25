@@ -23,6 +23,7 @@ help_text () {
 	USAGE: $prog <query>
 	 -h	 show this help text
 	 -d	 download episode
+	 -a	 using alternate link (slow, high buffering, use only if normal is not working)
 	 -H	 continue where you left off
 	EOF
 }
@@ -39,10 +40,10 @@ err () {
 
 search_anime () {
 	# get anime name along with its id
-	search=$(printf '%s' "$1" | tr ' ' '-' )
+	search=$1
 	titlepattern='<a href="/category/'
 
-	curl -s "https://gogoanime.vc//search.html" \
+	curl -s "https://gogoanime.pe//search.html" \
 		-G \
 		-d "keyword=$search" |
 	sed -n -E '
@@ -54,7 +55,7 @@ search_eps () {
 	# get available episodes for anime_id
 	anime_id=$1
 
-	curl -s "https://gogoanime.vc/category/$anime_id" |
+	curl -s "https://gogoanime.pe/category/$anime_id" |
 	sed -n -E '
 		/^[[:space:]]*<a href="#" class="active" ep_start/{
 		s/.* '\''([0-9]*)'\'' ep_end = '\''([0-9]*)'\''.*/\2/p
@@ -69,22 +70,25 @@ get_embedded_video_link() {
 	ep_no=$2
 
 	# credits to fork: https://github.com/Dink4n/ani-cli for the fix
-	if [ $is_download -eq 0 ]; then
+	if [ $is_alter -eq 0 ]; then
+	    curl -s "https://gogoanime.pe/$anime_id-episode-$ep_no" |
+	    sed -n -E 's/^[[:space:]]*<li class="dowloads"><a href="([^"]*)".*/\1/p'
+	else
 	    curl -s "https://gogoanime.vc/$anime_id-episode-$ep_no" |
 	    sed -n -E '
 		    /^[[:space:]]*<a href="#" rel="100"/{
 		    s/.*data-video="([^"]*)".*/https:\1/p
 		    q
 		    }'
-	else
-	    curl -s "https://gogoanime.vc/$anime_id-episode-$ep_no" |
-	    sed -n -E 's/^[[:space:]]*<li class="dowloads"><a href="([^"]*)".*/\1/p'
 	fi
 }
 
 get_links () {
 	embedded_video_url="$1"
-	if [ $is_download -eq 0 ]; then
+	if [ $is_alter -eq 0 ]; then
+	    curl -s "$embedded_video_url" |
+	    sed -n -E 's/^[[:space:]]*href="([^"]*\>)".*/\1/p' | sed 1q
+	else
 	    curl -s "$embedded_video_url" |
 	    sed -n -E '
 		    /^[[:space:]]*sources:/{
@@ -92,9 +96,6 @@ get_links () {
 		    q
 		    }
 		    '
-	else
-	    curl -s "$embedded_video_url" |
-	    sed -n -E 's/^[[:space:]]*href="([^"]*)".*/\1/p' | sed 1q
 	fi
 }
 
@@ -215,17 +216,11 @@ open_episode () {
 		# add 0 padding to the episode name
 		episode=$(printf "%03d" $episode)
 		{
-			curl -L -# -C - "$video_url" -o "$HOME/MOVIES/${anime_id}-${episode}.mp4" &&
+			ffmpeg -headers "Referer: $embedded_video_url" -i "$video_url" \
+				-c copy -threads 4 "${anime_id}-${episode}.mp4" &&
 				printf "${c_green}Downloaded episode: %s${c_reset}\n" "$episode" ||
 				printf "${c_red}Download failed episode: %s${c_reset}\n" "$episode"
 		}
-	#	episode=$(printf "%03d" $episode)
-	#	{
-	#		ffmpeg -headers "Referer: $embedded_video_url" -i "$video_url" \
-	#			-c copy "${anime_id}-${episode}.mp4" &&
-	#			printf "${c_green}Downloaded episode: %s${c_reset}\n" "$episode" ||
-	#			printf "${c_red}Download failed episode: %s${c_reset}\n" "$episode"
-	#	}
 	fi
 }
 
@@ -240,8 +235,9 @@ dep_ch "$player_fn" "curl" "sed" "grep"
 
 # option parsing
 is_download=0
+is_alter=0
 scrape=query
-while getopts 'hdH' OPT; do
+while getopts 'hdaH' OPT; do
 	case $OPT in
 		h)
 			help_text
@@ -249,6 +245,9 @@ while getopts 'hdH' OPT; do
 			;;
 		d)
 			is_download=1
+			;;
+		a)
+			is_alter=1
 			;;
 		H)
 			scrape=history
@@ -305,6 +304,7 @@ while :; do
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "p" "previous episode"
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "s" "select episode"
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "r" "replay current episode"
+	[ $is_alter -eq 0 ] && printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "R" "replay current episode(high quality, slow, use if normal is in low quality)"
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "q" "exit"
 	printf "${c_blue}Enter choice:${c_green} "
 	read choice
@@ -325,6 +325,11 @@ while :; do
 
 		r)
 			episode=$((episode))
+			;;
+		R)
+			is_alter=1
+			episode=$((episode))
+			is_alter=0
 			;;
 
 		q)
