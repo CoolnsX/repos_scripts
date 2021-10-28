@@ -87,7 +87,7 @@ get_links () {
 	embedded_video_url="$1"
 	if [ $is_alter -eq 0 ]; then
 	    curl -s "$embedded_video_url" |
-	    sed -n -E 's/^[[:space:]]*href="([^"]*\>)".*/\1/p' | sed 1q
+	    sed -n -E 's/^[[:space:]]*href="([^"]*\>)".*/\1/p' | grep -e 'gogo-cdn' | tail -1
 	else
 	    curl -s "$embedded_video_url" |
 	    sed -n -E '
@@ -216,7 +216,7 @@ open_episode () {
 		# add 0 padding to the episode name
 		episode=$(printf "%03d" $episode)
 		{
-			wget --referer $embedded_video_url "$video_url" -O "${anime_id}-${episode}.mp4" &&
+			aria2c -x 16 -s 16 --referer $embedded_video_url "$video_url" -o "${anime_id}-${episode}.mp4" &&
 				printf "${c_green}Downloaded episode: %s${c_reset}\n" "$episode" ||
 				printf "${c_red}Download failed episode: %s${c_reset}\n" "$episode"
 		}
@@ -303,7 +303,7 @@ while :; do
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "p" "previous episode"
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "s" "select episode"
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "r" "replay current episode"
-	[ $is_alter -eq 0 ] && printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "R" "replay current episode(high quality, slow, use if normal is in low quality)"
+	[ $is_alter -eq 0 ] && printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "R" "replay current episode(slow, use if normal is not working)"
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "q" "exit"
 	printf "${c_blue}Enter choice:${c_green} "
 	read choice
