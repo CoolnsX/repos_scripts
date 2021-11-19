@@ -1,5 +1,3 @@
 #!/bin/sh
 
-printf "Enter Torrent or magnet link : "
-read x
-aria2c --dir=MOVIES/ --seed-time=0 "$x"
+aria2c -d MOVIES --seed-time=0 "$(xclip -out clipboard)"

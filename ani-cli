@@ -5,6 +5,7 @@
 player_fn="mpv"
 
 prog="ani-cli"
+site="gogoanime.cm"
 logfile="${XDG_CACHE_HOME:-$HOME/.cache}/ani-hsts"
 
 c_red="\033[1;31m"
@@ -43,7 +44,7 @@ search_anime () {
 	search=$1
 	titlepattern='<a href="/category/'
 
-	curl -s "https://gogoanime.pe//search.html" \
+	curl -s "https://$site//search.html" \
 		-G \
 		-d "keyword=$search" |
 	sed -n -E '
@@ -55,7 +56,7 @@ search_eps () {
 	# get available episodes for anime_id
 	anime_id=$1
 
-	curl -s "https://gogoanime.pe/category/$anime_id" |
+	curl -s "https://$site/category/$anime_id" |
 	sed -n -E '
 		/^[[:space:]]*<a href="#" class="active" ep_start/{
 		s/.* '\''([0-9]*)'\'' ep_end = '\''([0-9]*)'\''.*/\2/p
@@ -71,10 +72,10 @@ get_embedded_video_link() {
 
 	# credits to fork: https://github.com/Dink4n/ani-cli for the fix
 	if [ $is_alter -eq 0 ]; then
-	    curl -s "https://gogoanime.pe/$anime_id-episode-$ep_no" |
+	    curl -s "https://$site/$anime_id-episode-$ep_no" |
 	    sed -n -E 's/^[[:space:]]*<li class="dowloads"><a href="([^"]*)".*/\1/p'
 	else
-	    curl -s "https://gogoanime.vc/$anime_id-episode-$ep_no" |
+	    curl -s "https://$site/$anime_id-episode-$ep_no" |
 	    sed -n -E '
 		    /^[[:space:]]*<a href="#" rel="100"/{
 		    s/.*data-video="([^"]*)".*/https:\1/p
@@ -87,7 +88,8 @@ get_links () {
 	embedded_video_url="$1"
 	if [ $is_alter -eq 0 ]; then
 	    curl -s "$embedded_video_url" |
-	    sed -n -E 's/^[[:space:]]*href="([^"]*)".*/\1/p' | grep -e 'gogo-cdn' | tail -1
+	    sed -n -E 's/^[[:space:]]*href="([^"]*)".*/\1/p' | 
+	    sed -n 's/gogo-cdn/\0/p' | tail -1
 	else
 	    curl -s "$embedded_video_url" |
 	    sed -n -E '
@@ -196,7 +198,7 @@ open_episode () {
 		printf "$c_reset"
 	fi
 
-	printf "Getting data for episode %d\n" $episode
+	printf "\nGetting data for episode %d\n" $episode
 
 	embedded_video_url=$(get_embedded_video_link "$anime_id" "$episode")
 	video_url=$(get_links "$embedded_video_url")
@@ -212,11 +214,10 @@ open_episode () {
 		setsid -f $player_fn --http-header-fields="Referer: $embedded_video_url" "$video_url" >/dev/null 2>&1
 	else
 		printf "Downloading episode $episode ...\n"
-		printf "%s\n" "$video_url"
 		# add 0 padding to the episode name
 		episode=$(printf "%03d" $episode)
 		{
-			aria2c -x 16 -s 16 --referer $embedded_video_url "$video_url" --dir=MOVIES/ -o "${anime_id}-${episode}.mp4" &&
+			aria2c -x 16 -s 16 --referer $embedded_video_url "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" &&
 				printf "${c_green}Downloaded episode: %s${c_reset}\n" "$episode" ||
 				printf "${c_red}Download failed episode: %s${c_reset}\n" "$episode"
 		}
@@ -303,6 +304,7 @@ while :; do
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "p" "previous episode"
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "s" "select episode"
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "r" "replay current episode"
+	printf "$c_blue[${c_cyan}%s$c_blue] $c_cyan%s$c_reset\n" "a" "search for another anime"
 	[ $is_alter -eq 0 ] && printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "R" "replay current episode(slow, use if normal is not working)"
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "q" "exit"
 	printf "${c_blue}Enter choice:${c_green} "
@@ -311,23 +313,43 @@ while :; do
 	case $choice in
 		n)
 			episode=$((episode + 1))
+			open_episode "$selection_id" "$episode"
 			;;
 		p)
 			episode=$((episode - 1))
+			open_episode "$selection_id" "$episode"
 			;;
 
 		s)	printf "${c_blue}Choose episode $c_cyan[1-%d]$c_reset:$c_green " $last_ep_number
 			read episode
 			printf "$c_reset"
 			[ "$episode" -eq "$episode" ] 2>/dev/null || die "Invalid number entered"
+			open_episode "$selection_id" "$episode"
+			;;
+
+		a)
+			tput reset
+			get_search_query ""
+			search_results=$(search_anime "$query")
+			[ -z "$search_results" ] && die "No search results found"
+			anime_selection "$search_results"
+			episode_selection
+			check_input
+			append_history
+			open_selection
+			continue
+			open_episode "$selection_id" "$episode"
 			;;
 
 		r)
 			episode=$((episode))
+			open_episode "$selection_id" "$episode"
 			;;
 		R)
 			is_alter=1
 			episode=$((episode))
+			open_episode "$selection_id" "$episode"
+			is_alter=0
 			;;
 
 		q)
@@ -338,5 +360,4 @@ while :; do
 			;;
 	esac
 
-	open_episode "$selection_id" "$episode"
 done
