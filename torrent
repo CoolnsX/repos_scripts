@@ -1,3 +1,11 @@
 #!/bin/sh
 
-aria2c -d MOVIES --seed-time=0 "$(xclip -out clipboard)"
+if [ -z "$*" ]; then
+    magnet="$(xclip -out clipboard)"
+else
+    magnet=$*
+fi
+
+notify-send "Torrent:Rukk ja Download ho rha hai"
+echo "$magnet"
+aria2c -d MOVIES --seed-time=0 "$magnet" && notify-send "Torrent:cheecha download hogyi" || notify-send -u critical "Torrent:cheecha error!!"

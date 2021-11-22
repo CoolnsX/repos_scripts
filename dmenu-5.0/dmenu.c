@@ -764,7 +764,7 @@ setup(void)
 				if (INTERSECT(x, y, 1, 1, info[i]))
 					break;
 
-		mw = MIN(MAX(max_textw() + promptw, 300), info[i].width);
+		mw = MIN(MAX(max_textw() + promptw, 600), info[i].width);
 		x = info[i].x_org + ((info[i].width  - mw) / 2);
 		y = info[i].y_org + ((info[i].height - mh) / 2);
 		XFree(info);
@@ -774,7 +774,7 @@ setup(void)
 		if (!XGetWindowAttributes(dpy, parentwin, &wa))
 			die("could not get embedding window attributes: 0x%lx",
 			    parentwin);
-		mw = MIN(MAX(max_textw() + promptw, 300), wa.width);
+		mw = MIN(MAX(max_textw() + promptw, 600), wa.width);
 		x = (wa.width  - mw) / 2;
 		y = (wa.height - mh) / 2;
 	}

@@ -2,6 +2,8 @@
 
 mkdir -p $HOME/.cache/pirokit
 
+sleep 0.2
+
 if [ -z $1 ]; then
   query=$(echo "" | dmenu -p "Search Torrent: ")
 else
@@ -59,11 +61,7 @@ fullURL="${baseurl}${url}/"
 
 # Requesting page for magnet link
 curl -s $fullURL -o $cachedir/tmp.html
-#magnet=$(grep -Po "magnet:\?xt=urn:btih:[a-zA-Z0-9]*" $cachedir/tmp.html | head -n 1) 
 magnet=$(grep -Po "magnet.*\" " $cachedir/tmp.html | tr -d \")
-echo "$magnet"
-xclip -sel clipboard "$magnet"
 
-notify-send "Torrent:Rukk ja download ho rha hai"
-aria2c -d MOVIES --seed-time=0 "$magnet" && notify-send "Torrent:cheecha download hogyi" || notify-send -u critical "Torrent:cheecha error!!"
+$HOME/repos_scripts/torrent "$magnet"
 
