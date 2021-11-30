@@ -14,7 +14,7 @@ c_reset="\033[0m"
 #function to download full video
 full_video()
 {
-	youtube-dl -f best "$1"
+	yt-dlp -f best -o ~/Videos/%(title)s.%(ext)s "$1"
 }
 
 # function to download part of a video and also split it for SNS...
@@ -29,10 +29,10 @@ part_video()
 	read x
 	printf "\n\n"
 	if [ $x == 'n' ]; then		
-		ffmpeg -i $(youtube-dl -f best --get-url "$video") -ss $start -t $dur $HOME/Videos/$(date +%T_%F).mp4
+		ffmpeg -i $(yt-dlp -f best --get-url "$video") -ss $start -t $dur $HOME/Videos/$(date +%T_%F).mp4
 	else
 		out=$(date +%T_%F)
-		ffmpeg -i $(youtube-dl -f best --get-url "$video") -map 0 -codec copy -f segment -segment_time 30 -ss $start -t $dur $HOME/Videos/${out}_%02d.mp4
+		ffmpeg -i $(yt-dlp -f best --get-url "$video") -map 0 -codec copy -f segment -segment_time 30 -ss $start -t $dur $HOME/Videos/${out}_%02d.mp4
 	fi
 }
 
@@ -45,9 +45,9 @@ printf "\n${c_reset}Enter choice:${c_green}"
 read choice
 case $choice in
 	f)
-		full_video "$x";;
+		full_video "$x" && notify-send "Video saved to Videos Directory" || notify-send -u critical "Error!!! Video not Downloaded";;
 	p)
-		part_video "$x";;
+		part_video "$x" && notify-send "Video saved to Videos Directory" || notify-send -u critical "Error!!! Video not Downloaded";;
 	q)
 		break;;
 esac
