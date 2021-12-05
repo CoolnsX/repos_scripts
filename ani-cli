@@ -5,7 +5,7 @@
 player_fn="mpv"
 
 prog="ani-cli"
-site="gogoanime.cm"
+site="gogoanime.wiki"
 logfile="${XDG_CACHE_HOME:-$HOME/.cache}/ani-hsts"
 
 c_red="\033[1;31m"

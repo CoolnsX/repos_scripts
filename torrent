@@ -1,7 +1,7 @@
 #!/bin/sh
 
 if [ -z "$*" ]; then
-    magnet="$(cat .cache/maglink)"
+    magnet="$(xclip -out clipboard)"
 else
     magnet=$*
 fi
@@ -13,6 +13,6 @@ if [ -z "$x" ]; then
     x="MOVIES"
 fi
 
-notify-send "Torrent:Rukk ja Download ho rha hai"
+notify-send "Torrent:Rukk ja cheecha Download ho rha hai"
 echo "$magnet"
 aria2c -d $x --seed-time=0 "$magnet" && notify-send "Torrent:cheecha download hogyi" || notify-send -u critical "Torrent:cheecha error!!"
