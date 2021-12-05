@@ -9,13 +9,17 @@ curl -s https://subsplease.org/rss/?r=720 | tr "><" ">\n<"  > $HOME/.cache/rss
 #extracting names and providing the menu for selecting particular title
 name=$(sed -n -e 's/title>\(\[SubsPlease\].*\)/\1/p' .cache/rss | sed -e 's/\[SubsPlease\] //g' -e 's/(.*//g' | dmenu -p "Search RSS:")
 
-printf "$name\n\n" 
+if [ -z "$name" ]; then
+    notify-send -u critical "Err.. Query empty"
+else
+    printf "$name\n\n" 
 
-#changing the name into format string for pattern matching
-query=$(printf "$name" | jq -rRs @uri)
+    #changing the name into format string for pattern matching
+    query=$(printf "$name" | jq -rRs @uri)
 
-#finding the magnet link containing the exact pattern
-magnet=$(sed -n -e "s/link>\(.*$query.*\).*/\1/p" .cache/rss)
+    #finding the magnet link containing the exact pattern
+    magnet=$(sed -n -e "s/link>\(.*$query.*\).*/\1/p" .cache/rss)
 
-#custom script for downloading torrent using aria2c.. you can use your own bittorrent client here
-$HOME/repos_scripts/torrent "$magnet"
+    #custom script for downloading torrent using aria2c.. you can use your own bittorrent client here
+    $HOME/repos_scripts/torrent "$magnet"
+fi
