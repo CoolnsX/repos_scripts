@@ -6,12 +6,7 @@ else
     magnet=$*
 fi
 
-printf "Enter Directory (default:MOVIES) :"
-read x
-
-if [ -z "$x" ]; then
-    x="MOVIES"
-fi
+x=$(printf "MOVIES\\nSoftwares" | dmenu -p "Select Directory :" | tr -d '\n')
 
 notify-send "Torrent:Rukk ja cheecha Download ho rha hai"
 echo "$magnet"

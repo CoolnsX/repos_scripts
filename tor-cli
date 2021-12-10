@@ -52,7 +52,7 @@ awk '{print "[S:"$1 ", L:"$2"]" }' $cachedir/seedleech.bw > $cachedir/tmp && mv 
 
 # Getting the line number
 LINE=$(paste -d\   $cachedir/size.bw $cachedir/seedleech.bw $cachedir/titles.bw |
-  dmenu -i -l 25 |
+  dmenu -l 25 |
   cut -d\- -f1 |
   awk '{$1=$1; print}')
 
@@ -65,5 +65,5 @@ magnet=$(grep -Po "magnet.*\" " $cachedir/tmp.html | tr -d \")
 
 echo $magnet > .cache/maglink
 
-$HOME/repos_scripts/torrent "$magnet"
+st -e $HOME/repos_scripts/torrent "$magnet" &
 
