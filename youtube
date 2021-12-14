@@ -11,40 +11,52 @@ c_magenta="\033[1;35m"
 c_cyan="\033[1;36m"
 c_reset="\033[0m"
 
+#function to extract audio from video
+ext_audio()
+{
+	yt-dlp -f 'ba' -x --audio-format mp3 "$1" -o "$HOME/Music/%(title)s.%(ext)s"
+}
+
+#function to extract part of audio from video
+part_audio()
+{
+	video=$1
+	printf "${c_magenta}Enter Starting Point(hh:mm:ss)or(mm:ss)${c_reset}:"
+	read start
+	printf "${c_yellow}Enter Upto Seconds:${c_cyan}"
+	read end
+	ffmpeg -i $(yt-dlp -f 'ba' --get-url "$video") -ss $start -t $end -map a -q:a 0 "$HOME/Music/%(title)s.mp3"
+}
+
 #function to download full video
 full_video()
 {
-	yt-dlp -f best -o ~/Videos/%(title)s.%(ext)s "$1"
+	yt-dlp -f best -o "$HOME/Videos/%(title)s.%(ext)s" "$1"
 }
 
 # function to download part of a video and also split it for SNS...
 part_video()
 {
 	video=$1
-	printf "${c_magenta}Enter Starting Point(hh:mm:ss)or(mm:ss)${c_reset}:"
+	printf "${c_magenta}Enter Start Point(hh:mm:ss)or(mm:ss)${c_reset}:"
 	read start
-	printf "${c_yellow}Enter Upto Seconds:${c_cyan}"
-	read dur
-	printf "Do you want to split video for SNS?? (y or n) :"
-	read x
-	printf "\n\n"
-	if [ $x == 'n' ]; then		
-		ffmpeg -i $(yt-dlp -f best --get-url "$video") -ss $start -t $dur $HOME/Videos/$(date +%T_%F).mp4
-	else
-		out=$(date +%T_%F)
-		ffmpeg -i $(yt-dlp -f best --get-url "$video") -map 0 -codec copy -f segment -segment_time 30 -ss $start -t $dur $HOME/Videos/${out}_%02d.mp4
-	fi
+	printf "${c_yellow}Enter End Point(hh:mm:ss)or(mm:ss):${c_cyan}"
+	read end
+	ffmpeg -i $(yt-dlp -f best --get-url "$video") -ss $start -to $end "$HOME/Videos/%(title)s.mp4"
 }
 
 #program starts from here..
-
-printf "${c_blue}Input Youtube link :${c_magenta}"
-read x
-printf "${c_yellow}Download>>\n${c_green}[f]Full video\n${c_cyan}[p]Part of video\n${c_red}[q]Quit"
+x=$(xclip -out clipboard)
+printf "${c_blue}Youtube link :${c_magenta}$x\n" 
+printf "${c_yellow}Download>>\n${c_blue}[a]Audio only\n${c_magenta}[f]part of Audio only\n${c_green}[v]Full video\n${c_cyan}[p]Part of video\n${c_red}[q]Quit"
 printf "\n${c_reset}Enter choice:${c_green}"
 read choice
 case $choice in
+	a)
+		ext_audio "$x" && notify-send "Audio saved to Videos Directory" || notify-send -u critical "Error!!! Audio not Downloaded";;
 	f)
+		part_audio "$x" && notify-send "Audio saved to Videos Directory" || notify-send -u critical "Error!!! Audio not Downloaded";;
+	v)
 		full_video "$x" && notify-send "Video saved to Videos Directory" || notify-send -u critical "Error!!! Video not Downloaded";;
 	p)
 		part_video "$x" && notify-send "Video saved to Videos Directory" || notify-send -u critical "Error!!! Video not Downloaded";;
