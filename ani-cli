@@ -6,7 +6,6 @@ player_fn="mpv"
 
 prog="ani-cli"
 site="gogoanime.wiki"
-logfile="${XDG_CACHE_HOME:-$HOME/.cache}/ani-hsts"
 
 c_red="\033[1;31m"
 c_green="\033[1;32m"
@@ -25,7 +24,6 @@ help_text () {
 	 -h	 show this help text
 	 -d	 download episode
 	 -a	 using alternate link (slow, high buffering, use only if normal is not working)
-	 -H	 continue where you left off
 	EOF
 }
 
@@ -119,9 +117,6 @@ get_search_query () {
 	fi
 }
 
-# create history file
-[ -f "$logfile" ] || : > "$logfile"
-
 #####################
 ## Anime selection ##
 #####################
@@ -190,7 +185,6 @@ open_episode () {
 	anime_id=$1
 	episode=$2
 
-	# Cool effect way of clearing screen
 	if [ $episode -lt 1 ] || [ $episode -gt $last_ep_number ]; then
 		err "Episode out of range"
 		printf "${c_blue}Choose episode $c_cyan[1-%d]$c_reset:$c_green " $last_ep_number
@@ -204,11 +198,6 @@ open_episode () {
 	video_url=$(get_links "$embedded_video_url")
 
 	if [ $is_download -eq 0 ]; then
-		# write anime and episode number
-		sed -E "
-			s/^${selection_id}\t[0-9]+/${selection_id}\t$((episode+1))/
-		" "$logfile" > "${logfile}.new" && mv "${logfile}.new" "$logfile"
-
 		printf "%s\n" "$embedded_video_url"
 		printf "%s\n" "$video_url"
 		setsid -f $player_fn --http-header-fields="Referer: $embedded_video_url" "$video_url" >/dev/null 2>&1
@@ -236,7 +225,6 @@ dep_ch "$player_fn" "curl" "sed" "grep"
 # option parsing
 is_download=0
 is_alter=0
-scrape=query
 while getopts 'hdaH' OPT; do
 	case $OPT in
 		h)
@@ -249,9 +237,6 @@ while getopts 'hdaH' OPT; do
 		a)
 			is_alter=1
 			;;
-		H)
-			scrape=history
-			;;
 	esac
 done
 shift $((OPTIND - 1))
@@ -260,22 +245,11 @@ shift $((OPTIND - 1))
 # main #
 ########
 
-case $scrape in
-	query)
-		get_search_query "$*"
-		search_results=$(search_anime "$query")
-		[ -z "$search_results" ] && die "No search results found"
-		anime_selection "$search_results"
-		episode_selection
-		;;
-	history)
-		search_results=$(sed -n -E 's/\t[0-9]*//p' "$logfile")
-		[ -z "$search_results" ] && die "History is empty"
-		anime_selection "$search_results"
-		ep_choice_start=$(sed -n -E "s/${selection_id}\t//p" "$logfile")
-		;;
-esac
-
+get_search_query "$*"
+search_results=$(search_anime "$query")
+[ -z "$search_results" ] && die "No search results found"
+anime_selection "$search_results"
+episode_selection
 
 { # checking input
 	[ "$ep_choice_start" -eq "$ep_choice_start" ] 2>/dev/null || die "Invalid number entered"
@@ -287,10 +261,6 @@ esac
 		episodes=$(seq $ep_choice_start $ep_choice_end)
 	fi
 }
-
-# add anime to history file
-grep -q -w "${selection_id}" "$logfile" ||
-	printf "%s\t%d\n" "$selection_id" $((episode+1)) >> "$logfile"
 
 for ep in $episodes
 do
