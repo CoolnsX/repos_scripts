@@ -3,7 +3,6 @@
 # dependencies: grep sed curl video_player
 # video_player ( needs to be able to play urls )
 player_fn="mpv"
-
 prog="ani-cli"
 site="gogoanime.wiki"
 
@@ -15,7 +14,6 @@ c_magenta="\033[1;35m"
 c_cyan="\033[1;36m"
 c_reset="\033[0m"
 
-
 help_text () {
 	while IFS= read line; do
 		printf "%s\n" "$line"
@@ -26,7 +24,6 @@ help_text () {
 	 -a	 using alternate link (slow, high buffering, use only if normal is not working)
 	EOF
 }
-
 
 die () {
 	printf "$c_red%s$c_reset\n" "$*" >&2
@@ -178,7 +175,6 @@ episode_selection () {
 	printf "${c_blue}Choose episode $c_cyan[1-%d]$c_reset:$c_green " $last_ep_number
 	read ep_choice_start ep_choice_end
 	printf "$c_reset"
-
 }
 
 open_episode () {
@@ -206,9 +202,15 @@ open_episode () {
 		# add 0 padding to the episode name
 		episode=$(printf "%03d" $episode)
 		{
+		    if [ $is_alter -eq 1 ]; then
+			ffmpeg -headers "Referer: $embedded_video_url" -i "$video_url" -c copy "${anime_id}-${episode}.mkv" &&
+				printf "${c_green}Downloaded episode: %s${c_reset}\n" "$episode" ||
+				printf "${c_red}Download failed episode: %s${c_reset}\n" "$episode"
+		    else
 			aria2c -x 16 -s 16 --referer $embedded_video_url "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" &&
 				printf "${c_green}Downloaded episode: %s${c_reset}\n" "$episode" ||
 				printf "${c_red}Download failed episode: %s${c_reset}\n" "$episode"
+		    fi
 		}
 	fi
 }
