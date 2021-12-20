@@ -2,13 +2,7 @@
 
 mkdir -p $HOME/.cache/pirokit
 
-sleep 0.2
-
-if [ -z $1 ]; then
-  query=$(echo "" | dmenu -p "Search Torrent: ")
-else
-  query=$1
-fi
+query=$(printf "" | dmenu -p "Search Torrent: ")
 
 baseurl="https://1337x.to"
 cachedir="$HOME/.cache/pirokit"
@@ -23,9 +17,8 @@ grep -o '<a href="/torrent/.*</a>' $cachedir/tmp.html |
 result_count=$(wc -l $cachedir/titles.bw | awk '{print $1}')
 if [ "$result_count" -lt 1 ]; then
     notify-send "😔 No Result found. Try again 🔴"
-  exit 0
+    exit
 fi
-
 
 # Seeders and Leechers
 grep -o '<td class="coll-2 seeds.*</td>\|<td class="coll-3 leeches.*</td>' $cachedir/tmp.html |
@@ -41,8 +34,6 @@ grep -E '/torrent/' $cachedir/tmp.html |
   sed -E 's#.*(/torrent/.*)/">.*/#\1#' |
   sed 's/td>//g' > $cachedir/links.bw
 
-
-
 # Clearning up some data to display
 sed 's/\./ /g; s/\-/ /g' $cachedir/titles.bw |
   sed 's/[^A-Za-z0-9 ]//g' | tr -s " " > $cachedir/tmp && mv $cachedir/tmp $cachedir/titles.bw
@@ -55,6 +46,11 @@ LINE=$(paste -d\   $cachedir/size.bw $cachedir/seedleech.bw $cachedir/titles.bw 
   dmenu -l 25 |
   cut -d\- -f1 |
   awk '{$1=$1; print}')
+
+if [ -z "$LINE" ]; then
+    notify-send -u critical "Err.. No torrent selected!!"
+    exit
+fi
 
 url=$(head -n $LINE $cachedir/links.bw | tail -n +$LINE)
 fullURL="${baseurl}${url}/"
