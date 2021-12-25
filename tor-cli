@@ -4,7 +4,7 @@ mkdir -p $HOME/.cache/pirokit
 
 query=$(printf "" | dmenu -p "Search Torrent: ")
 
-baseurl="https://1337x.to"
+baseurl="https://1337xx.to"
 cachedir="$HOME/.cache/pirokit"
 query="$(sed 's/ /+/g' <<<$query)"
 

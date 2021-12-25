@@ -31,7 +31,7 @@ part_audio()
 #function to download full video
 full_video()
 {
-	yt-dlp -f best -o "$HOME/Videos/%(title)s.%(ext)s" "$1"
+	yt-dlp -o "$HOME/Videos/%(title)s.%(ext)s" "$1"
 }
 
 # function to download part of a video and also split it for SNS...
@@ -42,7 +42,7 @@ part_video()
 	read start
 	printf "${c_yellow}Enter End Point(hh:mm:ss)or(mm:ss):${c_cyan}"
 	read end
-	ffmpeg -i $(yt-dlp -f best --get-url "$video") -ss $start -to $end "$HOME/Videos/%(title)s.mp4"
+	ffmpeg -i $(yt-dlp -f b --get-url "$video") -ss $start -to $end "$HOME/Videos/%(title)s.mp4"
 }
 
 #program starts from here..
