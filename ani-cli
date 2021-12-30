@@ -82,9 +82,13 @@ get_embedded_video_link() {
 get_links () {
 	embedded_video_url="$1"
 	if [ $is_alter -eq 0 ]; then
-	    curl -s "$embedded_video_url" |
+	    lol=$(curl -s "$embedded_video_url" |
 	    sed -n -E 's/^[[:space:]]*href="([^"]*)".*/\1/p' | 
-	    sed -n 's/gogo-cdn/\0/p' | tail -1
+	    sed -n 's/vidstreamingcdn/\0/p' | tail -1 | sed -n 's/\&amp\;/\&/p')
+	    [ -z "$lol" ] && lol=$(curl -s "$embedded_video_url" |
+	    sed -n -E 's/^[[:space:]]*href="([^"]*)".*/\1/p' | 
+	    sed -n 's/loadfast/\0/p' | tail -1 | sed -n 's/\&amp\;/\&/p')
+	    echo "$lol"
 	else
 	    curl -s "$embedded_video_url" |
 	    sed -n -E '
@@ -207,7 +211,8 @@ open_episode () {
 				printf "${c_green}Downloaded episode: %s${c_reset}\n" "$episode" ||
 				printf "${c_red}Download failed episode: %s${c_reset}\n" "$episode"
 		    else
-			aria2c -x 16 -s 16 --referer $embedded_video_url "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" &&
+		#	aria2c -x 16 -s 16 --referer $embedded_video_url "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" &&
+			aria2c --referer $embedded_video_url "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" &&
 				printf "${c_green}Downloaded episode: %s${c_reset}\n" "$episode" ||
 				printf "${c_red}Download failed episode: %s${c_reset}\n" "$episode"
 		    fi
@@ -276,7 +281,6 @@ while :; do
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "p" "previous episode"
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_yellow%s$c_reset\n" "s" "select episode"
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "r" "replay current episode"
-	printf "$c_blue[${c_cyan}%s$c_blue] $c_cyan%s$c_reset\n" "a" "search for another anime"
 	[ $is_alter -eq 0 ] && printf "$c_blue[${c_cyan}%s$c_blue] $c_magenta%s$c_reset\n" "R" "replay current episode(slow, use if normal is not working)"
 	printf "$c_blue[${c_cyan}%s$c_blue] $c_red%s$c_reset\n" "q" "exit"
 	printf "${c_blue}Enter choice:${c_green} "
@@ -296,20 +300,6 @@ while :; do
 			read episode
 			printf "$c_reset"
 			[ "$episode" -eq "$episode" ] 2>/dev/null || die "Invalid number entered"
-			open_episode "$selection_id" "$episode"
-			;;
-
-		a)
-			tput reset
-			get_search_query ""
-			search_results=$(search_anime "$query")
-			[ -z "$search_results" ] && die "No search results found"
-			anime_selection "$search_results"
-			episode_selection
-			check_input
-			append_history
-			open_selection
-			continue
 			open_episode "$selection_id" "$episode"
 			;;
 
