@@ -82,12 +82,10 @@ get_embedded_video_link() {
 get_links () {
 	embedded_video_url="$1"
 	if [ $is_alter -eq 0 ]; then
-	    lol=$(curl -s "$embedded_video_url" |
-	    sed -n -E 's/^[[:space:]]*href="([^"]*)".*/\1/p' | 
-	    sed -n 's/vidstreamingcdn/\0/p' | tail -1 | sed -n 's/\&amp\;/\&/p')
-	    [ -z "$lol" ] && lol=$(curl -s "$embedded_video_url" |
-	    sed -n -E 's/^[[:space:]]*href="([^"]*)".*/\1/p' | 
-	    sed -n 's/loadfast/\0/p' | tail -1 | sed -n 's/\&amp\;/\&/p')
+	    temp=$(curl -s "$embedded_video_url" |
+		sed -n -E 's/^[[:space:]]*href="([^"]*)".*/\1/p') 
+	    lol=$(echo "$temp" | sed -n 's/vidstreamingcdn/\0/p' | tail -1 | sed -n 's/\&amp\;/\&/p')
+	    [ -z "$lol" ] && lol=$(echo "$temp" | sed -n 's/loadfast/\0/p' | tail -1 | sed -n 's/\&amp\;/\&/p')
 	    echo "$lol"
 	else
 	    curl -s "$embedded_video_url" |
