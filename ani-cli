@@ -21,7 +21,6 @@ help_text () {
 	USAGE: $prog <query>
 	 -h	 show this help text
 	 -d	 download episode
-	 -a	 using alternate link (slow, high buffering, use only if normal is not working)
 	EOF
 }
 
@@ -183,7 +182,7 @@ open_episode () {
 		episode=$(printf "%03d" $episode)
 		{
 		#	aria2c -x 16 -s 16 --referer $embedded_video_url "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" &&
-			aria2c --referer $embedded_video_url "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" &&
+			aria2c --referer $embedded_video_url "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" --download-result=hide &&
 				printf "${c_green}Downloaded episode: %s${c_reset}\n" "$episode" ||
 				printf "${c_red}Download failed episode: %s${c_reset}\n" "$episode"
 		}
