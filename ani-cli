@@ -72,7 +72,7 @@ get_links () {
 	embedded_video_url="$1"
 	curl -s "$embedded_video_url" |
 	sed -n -E 's/^[[:space:]]*href="([^"]*)".*/\1/p' | 
-	grep -Eo "(http|https):\/\/.*com\/cdn.*expiry=[0-9]*" | tail -1 | sed 's/amp;//'
+	grep -Eo "(http|https):.*cdn.*" | tail -1 | sed 's/amp;//'
 }
 
 dep_ch () {
@@ -88,6 +88,7 @@ get_search_query () {
 	if [ -z "$*" ]; then
 		printf "Search Anime: "
 		read -r query
+		query=$(printf "$query" | tr ' ' '-')
 	else
 		query=$*
 	fi
@@ -181,8 +182,7 @@ open_episode () {
 		# add 0 padding to the episode name
 		episode=$(printf "%03d" $episode)
 		{
-		#	aria2c -x 16 -s 16 --referer $embedded_video_url "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" &&
-			aria2c --referer $embedded_video_url "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" --download-result=hide &&
+			aria2c -x 16 -s 16 --referer "$embedded_video_url" "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" --download-result=hide &&
 				printf "${c_green}Downloaded episode: %s${c_reset}\n" "$episode" ||
 				printf "${c_red}Download failed episode: %s${c_reset}\n" "$episode"
 		}
@@ -194,7 +194,7 @@ open_episode () {
 ############
 
 # to clear the colors when exited using SIGINT
-trap "printf '$c_reset'" INT HUP
+trap "printf '$c_reset'; exit 1" INT HUP
 
 dep_ch "$player_fn" "curl" "sed" "grep"
 
