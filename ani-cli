@@ -70,9 +70,14 @@ get_embedded_video_link() {
 
 get_links () {
 	dpage_link="$1"
-	curl -s "$dpage_link" |
-	sed -n -E 's/^[[:space:]]*href="([^"]*)".*/\1/p' | 
-	grep -Eo ".*cdn.*" | tail -1 
+	sb_url=$(curl -s "$dpage_link" |
+	    sed -n -E 's/^[[:space:]]*href="([^"]*)".*/\1/p' | grep -oE ".*sbplay.*")
+	link=$(curl -s "$sb_url" | sed -n -E 's/.*a href="#" onclick="download_video([^"]*)".*/\1/p')
+
+	i=$(printf "$link" | cut -d\' -f2 | head -1)
+	m=$(printf "$link" | cut -d\' -f4 | fzf)
+	h=$(printf "$link" | cut -d\' -f6 | head -1)
+	curl -s "https://sbplay2.com/dl?op=download_orig&id=$i&mode=$m&hash=$h" | sed -n -E 's/<a href="([^"]*.mp4)".*/\1/p'
 }
 
 dep_ch () {
@@ -172,17 +177,17 @@ open_episode () {
 
 	dpage_link=$(get_embedded_video_link "$anime_id" "$episode")
 	video_url=$(get_links "$dpage_link")
+	
+	printf "%s\n" "$video_url"
 
 	if [ $is_download -eq 0 ]; then
-		printf "%s\n" "$dpage_link"
-		printf "%s\n" "$video_url"
-		setsid -f $player_fn --http-header-fields="Referer: $dpage_link" "$video_url" > /dev/null 2>&1
+		setsid -f $player_fn "$video_url" > /dev/null 2>&1
 	else
 		printf "Downloading episode $episode ...\n"
 		# add 0 padding to the episode name
 		episode=$(printf "%03d" $episode)
 		{
-			aria2c -x 16 -s 16 -U "Mozilla/5.0" --referer "$dpage_link" "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" --download-result=hide &&
+			aria2c -x 16 -s 16 -U "Mozilla/5.0" "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" --download-result=hide &&
 				printf "${c_green}Downloaded episode: %s${c_reset}\n" "$episode" ||
 				printf "${c_red}Download failed episode: %s${c_reset}\n" "$episode"
 		}
