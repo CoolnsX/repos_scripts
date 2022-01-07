@@ -21,6 +21,7 @@ help_text () {
 	USAGE: $prog <query>
 	 -h	 show this help text
 	 -d	 download episode
+	 -c	 cast episode
 	EOF
 }
 
@@ -65,19 +66,15 @@ get_embedded_video_link() {
 	ep_no=$2
 
 	curl -s "https://$site/$anime_id-episode-$ep_no" |
-	sed -n -E 's/^[[:space:]]*<li class="dowloads"><a href="([^"]*)".*/\1/p'
+	    sed -n -E 's/.*rel="13" data-video="([^"]*)".*/\1/p' | cut -d/ -f5
 }
 
 get_links () {
 	dpage_link="$1"
-	sb_url=$(curl -s "$dpage_link" |
-	    sed -n -E 's/^[[:space:]]*href="([^"]*)".*/\1/p' | grep -oE ".*sbplay.*")
-	link=$(curl -s "$sb_url" | sed -n -E 's/.*a href="#" onclick="download_video([^"]*)".*/\1/p')
+	h=$(curl -s "https://sbplay2.com/d/$dpage_link" | sed -n -E 's/.*a href="#" onclick="download_video([^"]*)".*/\1/p' | head -1 | cut -d\' -f6)
 
-	i=$(printf "$link" | cut -d\' -f2 | head -1)
-	h=$(printf "$link" | cut -d\' -f6 | head -1)
-	lol=$(curl -s "https://sbplay2.com/dl?op=download_orig&id=$i&mode=h&hash=$h" | sed -n -E 's/<a href="([^"]*.mp4)".*/\1/p')
-	[ -z "$lol" ] &&  lol=$(curl -s "https://sbplay2.com/dl?op=download_orig&id=$i&mode=n&hash=$h" | sed -n -E 's/<a href="([^"]*.mp4)".*/\1/p')
+	lol=$(curl -s "https://sbplay2.com/dl?op=download_orig&id=$dpage_link&mode=h&hash=$h" | sed -n -E 's/<a href="([^"]*.mp4)".*/\1/p')
+	[ -z "$lol" ] &&  lol=$(curl -s "https://sbplay2.com/dl?op=download_orig&id=$dpage_link&mode=n&hash=$h" | sed -n -E 's/<a href="([^"]*.mp4)".*/\1/p')
 	printf "$lol"
 }
 
@@ -182,7 +179,11 @@ open_episode () {
 	echo "$video_url"
 
 	if [ $is_download -eq 0 ]; then
-		setsid -f $player_fn --http-header-fields="Referer: https://sbplay2.com" "$video_url" > /dev/null 2>&1
+		if [ $is_cast -eq 0 ]; then
+			setsid -f $player_fn --http-header-fields="Referer: https://sbplay2.com" "$video_url" > /dev/null 2>&1
+		else
+			catt cast "$video_url"
+		fi
 	else
 		printf "Downloading episode $episode ...\n"
 		# add 0 padding to the episode name
@@ -206,7 +207,8 @@ dep_ch "$player_fn" "curl" "sed" "grep"
 
 # option parsing
 is_download=0
-while getopts 'hd' OPT; do
+is_cast=0
+while getopts 'hdc' OPT; do
 	case $OPT in
 		h)
 			help_text
@@ -214,6 +216,9 @@ while getopts 'hd' OPT; do
 			;;
 		d)
 			is_download=1
+			;;
+		c)
+			is_cast=1
 			;;
 	esac
 done
