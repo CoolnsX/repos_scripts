@@ -21,7 +21,6 @@ help_text () {
 	USAGE: $prog <query>
 	 -h	 show this help text
 	 -d	 download episode
-	 -c	 cast episode
 	EOF
 }
 
@@ -66,24 +65,13 @@ get_embedded_video_link() {
 	ep_no=$2
 
 	curl -s "https://$site/$anime_id-episode-$ep_no" |
-	    sed -n -E 's/.*rel="13" data-video="([^"]*)".*/\1/p' | cut -d/ -f5
+	sed -n -E 's/^[[:space:]]*<li class="dowloads"><a href="([^"]*)".*/\1/p'
 }
 
 get_links () {
-	dpage_link="$1"
-	h=$(curl -s "https://sbplay2.com/d/$dpage_link" | sed -n -E 's/.*a href="#" onclick="download_video([^"]*)".*/\1/p' | head -1 | cut -d\' -f6)
-
-	lol=$(curl -s "https://sbplay2.com/dl?op=download_orig&id=$dpage_link&mode=h&hash=$h" | sed -n -E 's/<a href="([^"]*.mp4)".*/\1/p')
-	[ -z "$lol" ] &&  lol=$(curl -s "https://sbplay2.com/dl?op=download_orig&id=$dpage_link&mode=n&hash=$h" | sed -n -E 's/<a href="([^"]*.mp4)".*/\1/p')
-	printf "$lol"
-}
-
-dep_ch () {
-	for dep; do
-		if ! command -v "$dep" >/dev/null ; then
-			die "Program \"$dep\" not found. Please install it."
-		fi
-	done
+	data="$1"
+	echo "$data" | sed -n -E 's/^[[:space:]]*<div class="dowload"><a href="([^"]*)".*/\1/p' | 
+	grep -Eo ".*cdn.*" | tail -1 | sed "s/amp;//"
 }
 
 # get query
@@ -94,7 +82,6 @@ get_search_query () {
 	else
 		query=$*
 	fi
-	query=$(printf "$query" | tr ' ' '-')
 }
 
 #####################
@@ -173,23 +160,20 @@ open_episode () {
 
 	printf "\nGetting data for episode %d\n" $episode
 
-	dpage_link=$(get_embedded_video_link "$anime_id" "$episode")
-	video_url=$(get_links "$dpage_link")
-	
-	echo "$video_url"
+	embedded_video_url=$(get_embedded_video_link "$anime_id" "$episode")
+	temp=$(python $HOME/repos_scripts/lol.py "$embedded_video_url")
+	video_url=$(get_links "$temp")
 
 	if [ $is_download -eq 0 ]; then
-		if [ $is_cast -eq 0 ]; then
-			setsid -f $player_fn --http-header-fields="Referer: https://sbplay2.com" "$video_url" > /dev/null 2>&1
-		else
-			catt cast "$video_url"
-		fi
+		printf "%s\n" "$embedded_video_url"
+		printf "%s\n" "$video_url"
+		setsid -f $player_fn --http-header-fields="Referer: $embedded_video_url" "$video_url" >/dev/null 2>&1
 	else
 		printf "Downloading episode $episode ...\n"
 		# add 0 padding to the episode name
 		episode=$(printf "%03d" $episode)
 		{
-			aria2c -x 16 -s 16 --referer="https://sbplay2.com" "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" --download-result=hide &&
+			aria2c -x 16 -s 16 --referer $embedded_video_url "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" &&
 				printf "${c_green}Downloaded episode: %s${c_reset}\n" "$episode" ||
 				printf "${c_red}Download failed episode: %s${c_reset}\n" "$episode"
 		}
@@ -201,14 +185,11 @@ open_episode () {
 ############
 
 # to clear the colors when exited using SIGINT
-trap "printf '$c_reset'; exit 1" INT HUP
-
-dep_ch "$player_fn" "curl" "sed" "grep"
+trap "printf '$c_reset'; rm -f geckodriver.log; exit 1" INT HUP
 
 # option parsing
 is_download=0
-is_cast=0
-while getopts 'hdc' OPT; do
+while getopts 'hd' OPT; do
 	case $OPT in
 		h)
 			help_text
@@ -216,9 +197,6 @@ while getopts 'hdc' OPT; do
 			;;
 		d)
 			is_download=1
-			;;
-		c)
-			is_cast=1
 			;;
 	esac
 done
@@ -284,9 +262,11 @@ while :; do
 			;;
 
 		q)
+			rm -f geckodriver.log
 			break;;
 
 		*)
+			rm -f geckodriver.log
 			die "invalid choice"
 			;;
 	esac
