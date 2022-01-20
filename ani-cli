@@ -21,6 +21,7 @@ help_text () {
 	USAGE: $prog <query>
 	 -h	 show this help text
 	 -d	 download episode
+	 -c	 cast anime
 	EOF
 }
 
@@ -36,11 +37,7 @@ err () {
 search_anime () {
 	# get anime name along with its id
 	search=$1
-	titlepattern='<a href="/category/'
-
-	curl -s "https://$site//search.html" \
-		-G \
-		-d "keyword=$search" |
+	curl -s "https://$site//search.html?keyword=$search" |
 	sed -n -E '
 		s_^[[:space:]]*<a href="/category/([^"]*)" title="([^"]*)".*_\1_p
 		'
@@ -176,7 +173,11 @@ open_episode () {
 	printf "%s\n" "$video_url"
 
 	if [ $is_download -eq 0 ]; then
+	    if [ $is_cast -eq 0 ]; then
 		setsid -f $player_fn --http-header-fields="Referer: $embedded_url" "$video_url" >/dev/null 2>&1
+	    else
+		catt cast "$video_url"
+	    fi
 	else
 		printf "Downloading episode $episode ...\n"
 		# add 0 padding to the episode name
@@ -195,11 +196,12 @@ open_episode () {
 ############
 
 # to clear the colors when exited using SIGINT
-trap "printf '$c_reset'; rm -f geckodriver.log; exit 1" INT HUP
+trap "printf '$c_reset';exit 1" INT HUP
 
 # option parsing
 is_download=0
-while getopts 'hd' OPT; do
+is_cast=0
+while getopts 'hdc' OPT; do
 	case $OPT in
 		h)
 			help_text
@@ -207,6 +209,9 @@ while getopts 'hd' OPT; do
 			;;
 		d)
 			is_download=1
+			;;
+		c)
+			is_cast=1
 			;;
 	esac
 done
@@ -272,11 +277,9 @@ while :; do
 			;;
 
 		q)
-			rm -f geckodriver.log
 			break;;
 
 		*)
-			rm -f geckodriver.log
 			die "invalid choice"
 			;;
 	esac

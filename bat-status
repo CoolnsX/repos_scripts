@@ -1,0 +1,18 @@
+#! /bin/sh
+
+capacity=$(cat /sys/class/power_supply/BAT0/charge_full)
+voltage=$(cat /sys/class/power_supply/BAT0/voltage_now)
+percent=$(cat /sys/class/power_supply/BAT0/capacity)
+current=$(cat /sys/class/power_supply/BAT0/current_now)
+cap_now=$(cat /sys/class/power_supply/BAT0/charge_now)
+health="$(cat /sys/class/power_supply/BAT0/capacity_level)"
+stats="$(cat /sys/class/power_supply/BAT0/status)"
+
+printf "Capacity     : %.02f Ah\n" "$((capacity/1000))e-3"
+printf "Status       : %s\n" "$health"
+printf "Percentage   : %s\n" "$percent"
+printf "State        : %s\n" "$stats"
+printf "Capacity now : %.02f Ah\n" "$((cap_now/1000))e-3"
+printf "Voltage now  : %.02f V\n" "$((voltage/1000))e-3"
+printf "Current now  : %.02f A\n" "$((current/1000))e-3"
+printf "Wattage now  : %.02f W\n" "$(((voltage*current)/1000000))e-6"

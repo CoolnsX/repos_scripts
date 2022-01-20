@@ -1,13 +1,34 @@
 #!/bin/sh
 
+full_tor(){
+    notify-send "Torrent:Rukk ja cheecha Download ho rha hai"
+    aria2c -d $2 --seed-time=0 "$1" && notify-send "Torrent:cheecha download hogyi" || notify-send -u critical "Torrent:cheecha error!!"
+}
+
+part_tor(){
+    aria2c --dir=$HOME/.cache --bt-metadata-only=true --bt-save-metadata=true "$1"
+    aria2c --show-files=true $HOME/.cache/*.torrent 
+    printf "Enter index of the file to download:"
+    read -r ind
+    notify-send "Torrent:Rukk ja cheecha Download ho rha hai"
+    aria2c --select-file=$ind -d $2 --seed-time=0 $HOME/.cache/*.torrent && notify-send "Torrent:cheecha download hogyi" || notify-send -u critical "Torrent:cheecha error!!"
+    rm -f $HOME/.cache/*.torrent
+
+}
+
 if [ -z "$*" ]; then
     magnet="$(xclip -out clipboard)"
 else
     magnet=$*
 fi
 
-x=$(printf "MOVIES\\nSoftwares" | dmenu -p "Select Directory :" | tr -d '\n')
-
-notify-send "Torrent:Rukk ja cheecha Download ho rha hai"
 echo "$magnet"
-aria2c -d $x --seed-time=0 "$magnet" && notify-send "Torrent:cheecha download hogyi" || notify-send -u critical "Torrent:cheecha error!!"
+x=$(printf "MOVIES\\nSoftwares" | dmenu -p "Select Directory :" | tr -d '\n')
+printf "Download>>>\n[f]ull torrent\n[p]artial torrent\n\tenter choice:"
+read -r ch
+case $ch in
+    f)
+	full_tor "$magnet" "$x";;
+    p)
+	part_tor "$magnet" "$x";;
+esac
