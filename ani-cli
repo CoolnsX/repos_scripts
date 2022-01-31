@@ -145,15 +145,6 @@ anime_selection () {
 ## Ep selection ##
 ##################
 
-episode_selection () {
-	[ $is_download -eq 1 ] &&
-		printf "Range of episodes can be specified: start_number end_number\n"
-
-	printf "${c_blue}Choose episode $c_cyan[1-%d]$c_reset:$c_green " $last_ep_number
-	read ep_choice_start ep_choice_end
-	printf "$c_reset"
-}
-
 open_episode () {
 	anime_id=$1
 	episode=$2
@@ -174,7 +165,8 @@ open_episode () {
 
 	if [ $is_download -eq 0 ]; then
 	    if [ $is_cast -eq 0 ]; then
-		setsid -f $player_fn --http-header-fields="Referer: $embedded_url" "$video_url" >/dev/null 2>&1
+		([ -z $ep_choice_end ] && 
+		    setsid -f $player_fn --referrer="$embedded_url" "$video_url" >/dev/null 2>&1 || $player_fn --referrer="$embedded_url" "$video_url" >/dev/null 2>&1)
 	    else
 		catt cast "$video_url"
 	    fi
@@ -183,8 +175,7 @@ open_episode () {
 		# add 0 padding to the episode name
 		episode=$(printf "%03d" $episode)
 		{
-		#	aria2c -x 16 -s 16 --referer "$embedded_url" "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" &&
-			aria2c --referer "$embedded_url" "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" &&
+			aria2c -x 16 -s 16 --referer "$embedded_url" "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" &&
 				printf "${c_green}Downloaded episode: %s${c_reset}\n" "$episode" ||
 				printf "${c_red}Download failed episode: %s${c_reset}\n" "$episode"
 		}
@@ -225,7 +216,10 @@ get_search_query "$*"
 search_results=$(search_anime "$query")
 [ -z "$search_results" ] && die "No search results found"
 anime_selection "$search_results"
-episode_selection
+[ $is_download -eq 1 ] && printf "Range of episodes can be specified: start_number end_number\n"
+printf "${c_blue}Choose episode $c_cyan[1-%d]$c_reset:$c_green " $last_ep_number
+read ep_choice_start ep_choice_end
+printf "$c_reset"
 
 { # checking input
 	[ "$ep_choice_start" -eq "$ep_choice_start" ] 2>/dev/null || die "Invalid number entered"
@@ -280,7 +274,7 @@ while :; do
 			break;;
 
 		*)
-			die "invalid choice"
+			err "invalid choice"
 			;;
 	esac
 
