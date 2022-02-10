@@ -59,7 +59,4 @@ fullURL="${baseurl}${url}/"
 curl -s $fullURL -o $cachedir/tmp.html
 magnet=$(grep -Po "magnet.*\" " $cachedir/tmp.html | tr -d \")
 
-echo $magnet > $HOME/.cache/maglink
-
 st -e $HOME/repos_scripts/torrent "$magnet" &
-

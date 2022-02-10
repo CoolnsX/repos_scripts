@@ -4,21 +4,21 @@
 
 #parsing rss file
 notify-send "Parsing SubsPlease RSS... Please Wait..." 
-curl -s https://subsplease.org/rss/?r=720 | tr "<" "\n"  > $HOME/.cache/rss
+curl -s https://subsplease.org/rss/?r=1080 | tr "<" "\n" > $HOME/.cache/rss
 
 #extracting names and providing the menu for selecting particular title
-name=$(sed -n -e 's/title>\(\[SubsPlease\].*\)/\1/p' .cache/rss | sed -e 's/\[SubsPlease\] //g' -e 's/(.*//g' | dmenu -l 25 -p "Search anime:")
+name=$(sed -n -e 's/title>\[.*Please\] \(.*\)/\1/p' .cache/rss | dmenu -l 25 -p "Search anime:")
 
 if [ -z "$name" ]; then
     notify-send -u critical "Err.. Query empty"
-    exit
+    exit 0
 fi
 
-#changing the name into format string for pattern matching
-query=$(printf "$name" | jq -rRs @uri)
+#extracting id from anime_name_[id].mkv
+id=$(printf "$name" | sed -n -e 's/.*\[\(.*\)\].*/\1/p')
 
 #finding the magnet link containing the exact pattern
-magnet=$(sed -n -e "s/link>\(.*$query.*\).*/\1/p" .cache/rss)
+magnet=$(sed -n -e "s/link>\(.*$id.*\).*/\1/p" .cache/rss | sed 's/amp;//g')
 
 #custom script for downloading torrent using aria2c.. you can use your own bittorrent client here
 st -e $HOME/repos_scripts/torrent "$magnet" &

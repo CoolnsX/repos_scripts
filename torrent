@@ -28,11 +28,9 @@ part_tor(){
 }
 
 trap "rm -f $HOME/.cache/*.torrent;exit 0" INT HUP
-file=$HOME/.cache/maglink
-xclip -out clipboard > $file
 
-if [ -f "$file" ]; then
-    magnet=$(cat $file)
+if [ -z "$*" ]; then
+    magnet=$(xclip -out clipboard)
 else
     magnet=$*
 fi
