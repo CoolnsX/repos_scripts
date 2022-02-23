@@ -5,6 +5,7 @@
 player_fn="mpv"
 prog="ani-cli"
 site="gogoanime.film"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
 
 c_red="\033[1;31m"
 c_green="\033[1;32m"
@@ -21,7 +22,6 @@ help_text () {
 	USAGE: $prog <query>
 	 -h	 show this help text
 	 -d	 download episode
-	 -c	 cast anime
 	EOF
 }
 
@@ -37,23 +37,19 @@ err () {
 search_anime () {
 	# get anime name along with its id
 	search=$1
-	curl -s "https://$site//search.html?keyword=$search" |
-	sed -n -E '
-		s_^[[:space:]]*<a href="/category/([^"]*)" title="([^"]*)".*_\1_p
-		'
+	curl -s "https://$site//search.html?keyword=$search" | sed -n -E '
+		s_^[[:space:]]*<a href="/category/([^"]*)" title="([^"]*)".*_\1_p'
 }
 
 search_eps () {
 	# get available episodes for anime_id
 	anime_id=$1
 
-	curl -s "https://$site/category/$anime_id" |
-	sed -n -E '
+	curl -s "https://$site/category/$anime_id" | sed -n -E '
 		/^[[:space:]]*<a href="#" class="active" ep_start/{
 		s/.* '\''([0-9]*)'\'' ep_end = '\''([0-9]*)'\''.*/\2/p
 		q
-		}
-		'
+		}'
 }
 
 embade_link() {
@@ -68,17 +64,11 @@ embade_link() {
 
 decrypt_link() {
     ajax_url='https://gogoplay.io/encrypt-ajax.php'
-
-    #get the id from the url
     video_id=$(printf "$1" | cut -d\? -f2 | cut -d\& -f1 | sed 's/id=//g')
-    
-    #construct ajax parameters
     secret_key='3235373436353338353932393338333936373634363632383739383333323838'
     iv='34323036393133333738303038313335'
-    ajax=$(printf "$video_id" | openssl enc -aes256  -K "$secret_key" -iv "$iv" -a)
-    
-    #send the request to the ajax url
-    curl -s -H 'x-requested-with:XMLHttpRequest' "$ajax_url" -d "id=$ajax" -d "time=69420691337800813569" | jq -r '.source[].file' | head -4 | tail -1
+    ajax=$(printf "$video_id" | openssl enc -aes256 -K "$secret_key" -iv "$iv" -a)
+    curl -s -H "X-Requested-With:XMLHttpRequest" -H "User-Agent:$agent" -H "Referer:$1" "$ajax_url" -d "id=$ajax" -d "time=69420691337800813569" | jq -r '.source[].file' | head -4 | tail -1
 }
 
 # get query
@@ -164,18 +154,14 @@ open_episode () {
 	printf "%s\n" "$video_url"
 
 	if [ $is_download -eq 0 ]; then
-	    if [ $is_cast -eq 0 ]; then
 		([ -z $ep_choice_end ] && 
-		    setsid -f $player_fn --referrer="$embedded_url" "$video_url" >/dev/null 2>&1 || $player_fn --referrer="$embedded_url" "$video_url" >/dev/null 2>&1)
-	    else
-		catt cast "$video_url"
-	    fi
+		    setsid -f $player_fn --http-header-fields="User-Agent:$agent" --referrer="$embedded_url" "$video_url" >/dev/null 2>&1 || $player_fn --referrer="$embedded_url" "$video_url" >/dev/null 2>&1)
 	else
 		printf "Downloading episode $episode ...\n"
 		# add 0 padding to the episode name
 		episode=$(printf "%03d" $episode)
 		{
-			aria2c -x 16 -s 16 --referer "$embedded_url" "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" &&
+			aria2c -x 16 -s 16 -U "$agent" --referer "$embedded_url" "$video_url" --dir=MOVIES -o "${anime_id}-${episode}.mp4" &&
 				printf "${c_green}Downloaded episode: %s${c_reset}\n" "$episode" ||
 				printf "${c_red}Download failed episode: %s${c_reset}\n" "$episode"
 		}
@@ -191,7 +177,6 @@ trap "printf '$c_reset';exit 1" INT HUP
 
 # option parsing
 is_download=0
-is_cast=0
 while getopts 'hdc' OPT; do
 	case $OPT in
 		h)
@@ -200,9 +185,6 @@ while getopts 'hdc' OPT; do
 			;;
 		d)
 			is_download=1
-			;;
-		c)
-			is_cast=1
 			;;
 	esac
 done
