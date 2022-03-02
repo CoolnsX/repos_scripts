@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# script for downloading youtube videos and split it into pieces..
+# script for downloading videos/audios and/or extract part from it..
 
 # defining shell colors for distinction
 c_red="\033[1;31m"
@@ -12,16 +12,14 @@ c_cyan="\033[1;36m"
 c_reset="\033[0m"
 
 #function to download full video/audio
-full()
-{
+full(){
 	[ -z "$2" ] &&
 	yt-dlp -o "$HOME/Videos/%(title)s.%(ext)s" "$1" || 
 	yt-dlp -f 'ba' -x --audio-format mp3 "$1" -o "$HOME/Music/%(title)s.%(ext)s"
 }
 
 # function to download part of a video/audio..
-part()
-{
+part(){
 	video=$1
 	printf "${c_magenta}Enter Start Point(hh:mm:ss)or(mm:ss)${c_reset}:"
 	read start
@@ -35,7 +33,7 @@ part()
 #program starts from here..
 x=$(xclip -out clipboard)
 printf "${c_blue}Youtube link :${c_magenta}$x\n" 
-printf "${c_yellow}Download>>\n${c_blue}[a]Audio only\n${c_magenta}[f]part of Audio only\n${c_green}[v]Full video\n${c_cyan}[p]Part of video\n${c_red}[q]Quit"
+printf "${c_yellow}Download>>\n${c_blue}[a]udio only\n${c_magenta}[f]part of Audio only\n${c_green}[v]ideo\n${c_cyan}[p]art of video\n${c_red}[q]uit"
 printf "\n${c_reset}Enter choice:${c_green}"
 read choice
 case $choice in

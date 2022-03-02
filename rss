@@ -1,18 +1,13 @@
 #!/bin/sh
 
 #script for downloading latest anime episode via torrent using rss provided by website named "subsplease.org"
-
 #parsing rss file
 notify-send "Parsing SubsPlease RSS... Please Wait..." 
 curl -s https://subsplease.org/rss/?r=1080 | tr "<" "\n" > $HOME/.cache/rss
 
 #extracting names and providing the menu for selecting particular title
 name=$(sed -n -e 's/title>\[.*Please\] \(.*\)/\1/p' .cache/rss | dmenu -l 25 -p "Search anime:")
-
-if [ -z "$name" ]; then
-    notify-send -u critical "Err.. Query empty"
-    exit 0
-fi
+[ -z "$name" ] && notify-send -u critical "Err.. Query empty" && exit 0
 
 #extracting id from anime_name_[id].mkv
 id=$(printf "$name" | sed -n -e 's/.*\[\(.*\)\].*/\1/p')
@@ -21,4 +16,4 @@ id=$(printf "$name" | sed -n -e 's/.*\[\(.*\)\].*/\1/p')
 magnet=$(sed -n -e "s/link>\(.*$id.*\).*/\1/p" .cache/rss | sed 's/amp;//g')
 
 #custom script for downloading torrent using aria2c.. you can use your own bittorrent client here
-st -e $HOME/repos_scripts/torrent "$magnet" &
+setsid -f st -e $HOME/repo_scripts/torrent "$magnet"
