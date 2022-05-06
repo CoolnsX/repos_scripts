@@ -26,8 +26,8 @@ part(){
 	printf "${c_yellow}Enter End Point(hh:mm:ss)or(mm:ss):${c_cyan}"
 	read end
 	[ -z "$2" ] &&
-	ffmpeg -i $(yt-dlp -f b --get-url "$video") -ss $start -to $end "$HOME/Videos/%(title)s.mp4" || 
-	ffmpeg -i $(yt-dlp -f 'ba' --get-url "$video") -ss $start -t $end -map a -q:a 0 "$HOME/Music/%(title)s.mp3"
+	ffmpeg -i $(yt-dlp -f b --get-url "$video") -ss $start -to $end "$HOME/Videos/$(date +%s).mp4" || 
+	ffmpeg -i $(yt-dlp -f 'ba' --get-url "$video") -ss $start -t $end -map a -q:a 0 "$HOME/Music/$(date +%s).mp3"
 }
 
 #program starts from here..

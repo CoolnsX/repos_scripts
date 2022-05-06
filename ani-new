@@ -1,19 +1,26 @@
 #!/bin/sh
 
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
 decrypt_link() {
-    ajax_url='https://gogoplay.io/encrypt-ajax.php'
-    video_id=$(printf "$1" | cut -d\? -f2 | cut -d\& -f1 | sed 's/id=//g')
-    secret_key='3235373436353338353932393338333936373634363632383739383333323838'
-    iv='34323036393133333738303038313335'
-    ajax=$(printf "$video_id" | openssl enc -aes256 -K "$secret_key" -iv "$iv" -a)
-    curl -s -H "X-Requested-With:XMLHttpRequest" -H "User-Agent:$agent" -H "Referer:https:$1" "$ajax_url" -d "id=$ajax" -d "time=69420691337800813569" | jq -r '.source[].file' | head -4 | tail -1
+	secret_key='3633393736383832383733353539383139363339393838303830383230393037'
+	iv='34373730343738393639343138323637'
+	ajax_url="https://gogoplay5.com/encrypt-ajax.php"
+	id=$(printf "%s" "$1" | sed -nE 's/.*id=(.*)&title.*/\1/p')
+	ajax=$(printf "%s" "$id" | openssl enc -e -aes256 -K "$secret_key" -iv "$iv" | base64)
+	data=$(curl -s -H "X-Requested-With:XMLHttpRequest" "$ajax_url" -d "id=$ajax" | sed -e 's/{"data":"//' -e 's/"}/\n/' -e 's/\\//g')
+	printf "$data" | base64 -d | openssl enc -d -aes256 -K "$secret_key" -iv "$iv" | sed -e 's/\].*/\]/' -e 's/\\//g' | grep -Eo 'https:\/\/[-a-zA-Z0-9@:%._\+~#=][a-zA-Z0-9][-a-zA-Z0-9@:%_\+.~#?&\/\/=]*' | head -4 | tail -1
 }
 
-notify-send -t 1000 "parsing gogoanime.... please wait!!"
-url=$(curl -s -A "$agent" "https://gogoanime.film" | sed -nE 's/.*"name".*href="\/([^"]*)".*/\1/p' | dmenu -p "Select anime:")
+notify-send -t 1000 "parsing gogoplay5.... please wait!!"
+url=$(curl -s "https://gogoplay5.com" | sed -nE 's_.*<a href="/videos/([^"]*)">_\1_p' | dmenu -l 15 -p "Select anime:")
 [ -z "$url" ] && notify-send -u critical "Err.. no anime selected" && exit 0
-refr=$(curl -s -A "$agent" "https://gogoanime.film/$url" | sed -n -E 's/^[[:space:]]*<a href="#" rel="100" data-video="([^"]*)".*/\1/p')
+refr=$(curl -s "https://gogoplay5.com/videos/$url" | sed -nE 's/.*iframe src="([^"]*)".*/\1/p')
 video=$(decrypt_link "$refr")
+choice=$(printf "download\nwatch" | dmenu -p "??" )
+[ "$choice" = "watch" ] && notify-send "Opening $url in mpv" && setsid -f mpv --referrer="https://gogoplay5.com" "$video" && exit 0
 notify-send "Downloading $url"
-st -e aria2c --summary-interval=0 -x 16 -s 16 -U "$agent" --referer="https:$refr" "$video" --dir=MOVIES -o "$url.mp4" --download-result=hide && notify-send "Downloaded $url"
+case $video in
+    *mp4*)
+	    st -e aria2c --summary-interval=0 -x 16 -s 16 --referer="https:$refr" "$video" --dir=movies -o "$url.mp4" --download-result=hide && notify-send "Downloaded $url" || exit 0;;
+    *m3u*)
+	    st -e ffmpeg -loglevel error -stats -referer "https:$refr" -i "$video" -c copy "movies/$url.mp4" && notify-send "Downloaded $url" || exit 0;;
+esac
