@@ -1,26 +1,53 @@
 #!/bin/sh
 
-decrypt_link() {
-	secret_key='3633393736383832383733353539383139363339393838303830383230393037'
-	iv='34373730343738393639343138323637'
-	ajax_url="https://gogoplay5.com/encrypt-ajax.php"
-	id=$(printf "%s" "$1" | sed -nE 's/.*id=(.*)&title.*/\1/p')
-	ajax=$(printf "%s" "$id" | openssl enc -e -aes256 -K "$secret_key" -iv "$iv" | base64)
-	data=$(curl -s -H "X-Requested-With:XMLHttpRequest" "$ajax_url" -d "id=$ajax" | sed -e 's/{"data":"//' -e 's/"}/\n/' -e 's/\\//g')
-	printf "$data" | base64 -d | openssl enc -d -aes256 -K "$secret_key" -iv "$iv" | sed -e 's/\].*/\]/' -e 's/\\//g' | grep -Eo 'https:\/\/[-a-zA-Z0-9@:%._\+~#=][a-zA-Z0-9][-a-zA-Z0-9@:%_\+.~#?&\/\/=]*' | head -4 | tail -1
+down () {
+	notify-send "$3 links fetched.." -r $tmp
+	choice=$(printf "download\nwatch" | dmenu -p "??")
+	[ "$choice" = "watch" ] && setsid -f mpv --referrer="$1" "$2" && notify-send "opening $url in mpv" -r $tmp && exit 0
+	notify-send "Downloading $url" -r $tmp
+	case $2 in
+	    *m3u*)
+		    st -e ffmpeg -loglevel error -stats -referer "$1" -user_agent "$agent" -i "$2" -c copy "$url.mp4" && notify-send "Episode Downloaded $url" -r $tmp || (notify-send -u "critical" "Downloading failed $url" -r $tmp && exit 0);;
+	    *)
+		    st -e aria2c -U "$agent" --check-certificate=false --summary-interval=0 -x 16 -s 16 --referer="$1" "$2" -o "$url.mp4" --download-result=hide && notify-send "Episode Downloaded $url" -r $tmp || (notify-send -u "critical" "Downloading failed $url" -r $tmp && exit 0);;
+	esac
+	exit 0
 }
 
-notify-send -t 1000 "parsing gogoplay5.... please wait!!"
-url=$(curl -s "https://gogoplay5.com" | sed -nE 's_.*<a href="/videos/([^"]*)">_\1_p' | dmenu -l 15 -p "Select anime:")
-[ -z "$url" ] && notify-send -u critical "Err.. no anime selected" && exit 0
-refr=$(curl -s "https://gogoplay5.com/videos/$url" | sed -nE 's/.*iframe src="([^"]*)".*/\1/p')
-video=$(decrypt_link "$refr")
-choice=$(printf "download\nwatch" | dmenu -p "??" )
-[ "$choice" = "watch" ] && notify-send "Opening $url in mpv" && setsid -f mpv --referrer="https://gogoplay5.com" "$video" && exit 0
-notify-send "Downloading $url"
-case $video in
-    *mp4*)
-	    st -e aria2c --summary-interval=0 -x 16 -s 16 --referer="https:$refr" "$video" --dir=movies -o "$url.mp4" --download-result=hide && notify-send "Downloaded $url" || exit 0;;
-    *m3u*)
-	    st -e ffmpeg -loglevel error -stats -referer "https:$refr" -i "$video" -c copy "movies/$url.mp4" && notify-send "Downloaded $url" || exit 0;;
-esac
+base_url=https://goload.pro
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.54 Safari/537.36"
+trap "exit 0" INT HUP
+tmp=$(notify-send "Parsing $base_url.. Please wait..." -p)
+url=$(curl -A "$agent" -s "$base_url" | sed -nE 's_.*<a href="/videos/([^"]*)">_\1_p' | dmenu -p "Select Anime: ")
+[ -z "$url" ] && notify-send -u "critical" "No anime selected" -r $tmp && exit 0 || notify-send "Loading Episode $url.." -r $tmp
+refr=$(curl -A "$agent" -s "$base_url/videos/$url" | sed -nE 's/.*iframe src="(.*)" al.*/\1/p')
+notify-send "Fetching Embed links" -r $tmp
+resp="$(curl -A "$agent" -s "https:$refr")"
+links=$(printf "%s" "$resp" | sed -nE 's/.*data-status="1".*data-video="(.*)">.*/\1/p')
+
+notify-send "Fetching mp4upload links" -r $tmp
+mp4up_link=$(printf "$links" | grep "mp4upload")
+[ -z "$mp4up_link" ] || mp4up_video=$(curl -A "$agent" -s "$mp4up_link" -H "DNT: 1" | sed -nE 's_.*embed\|(.*)\|.*blank.*\|(.*)\|(.*)\|(.*)\|(.*)\|src.*_https://\1.mp4upload.com:\5/d/\4/\3.\2_p')
+[ -z "$mp4up_video" ] || down "$mp4up_link" "$mp4up_video" "mp4upload"
+
+notify-send "Fetching doodstream links" -r $tmp
+dood_id=$(printf "$links" | sed -n "s_.*dood.*/e/__p")
+[ -z "$dood_id" ] || dood_link=$(curl -A "$agent" -s "https://dood.ws/d/$dood_id" | sed -nE 's/<a href="(.*)" class="btn.*justify.*/\1/p')
+sleep 0.5
+[ -z "$dood_link" ] || dood_video=$(curl -A "$agent" -s "https://dood.ws${dood_link}" | sed -nE "s/.*window.open.*'(.*)',.*/\1/p")
+[ -z "$dood_video" ] || down "https://dood.ws/d/$dood_id" "$dood_video" "doodstream"
+
+notify-send "Fetching goload links" -r $tmp
+id=$(printf "%s" "$refr" | sed -nE 's/.*id=(.*)&title.*/\1/p')
+secret_key=$(printf "%s" "$resp" | sed -nE 's/.*class="container-(.*)">/\1/p' | tr -d "\n" | od -A n -t x1 | tr -d " |\n")
+iv=$(printf "%s" "$resp" | sed -nE 's/.*class="wrapper container-(.*)">/\1/p' | tr -d "\n" | od -A n -t x1 | tr -d " |\n")
+second_key=$(printf "%s" "$resp" | sed -nE 's/.*class=".*videocontent-(.*)">/\1/p' | tr -d "\n" | od -A n -t x1 | tr -d " |\n")
+token=$(printf "%s" "$resp" | sed -nE 's/.*data-value="(.*)">.*/\1/p' | base64 -d | openssl enc -d -aes256 -K "$secret_key" -iv "$iv" | sed -nE 's/.*&(token.*)/\1/p')
+ajax=$(printf '%s' "$id" |openssl enc -e -aes256 -K "$secret_key" -iv "$iv" | base64)
+video="$(curl -A "$agent" -s -H "X-Requested-With:XMLHttpRequest" "${base_url}/encrypt-ajax.php?id=${ajax}&alias=${id}&${token}" | sed -e 's/{"data":"//' -e 's/"}/\n/' -e 's/\\//g' | base64 -d | openssl enc -d -aes256 -K "$second_key" -iv "$iv" | sed -e 's/\].*/\]/' -e 's/\\//g' | grep -Eo 'https:\/\/[-a-zA-Z0-9@:%._\+~#=][a-zA-Z0-9][-a-zA-Z0-9@:%_\+.~#?&\/\/=]*' | head -4 | tail -1)"
+[ -z "$video" ] || down "$base_url" "$video" "goload"
+
+notify-send "Fetching xstreamcdn links" -r $tmp
+fb_id=$(printf "$links" | sed -n "s_.*fembed.*/v/__p")
+[ -z "$fb_id" ] || fb_video=$(curl -A "$agent" -s -X POST "https://fembed-hd.com/api/source/$fb_id" -H "x-requested-with:XMLHttpRequest" | sed -e 's/\\//g' -e 's/.*data"://' | tr "}" "\n" | sed -nE 's/.*file":"(.*)","label.*/\1/p' | tail -1)
+[ -z "$fb_video" ] || down "https://fembed-hd.com/v/$fb_id" "$fb_video" "xstreamcdn"
