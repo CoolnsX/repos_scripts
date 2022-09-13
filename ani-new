@@ -20,7 +20,7 @@ run () {
 	curl -s "$base_url?page=2" -A "$agent" | sed -nE 's_.*<a href="/videos/([^"]*)">_\1_p' &
 }
 
-base_url=https://goload.pro
+base_url="https://gogohd.net"
 agent="Mozilla/5.0 (Linux; Android 11; moto g(9) power) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/101.0.4951.41 Mobile Safari/537.36"
 trap "exit 0" INT HUP
 tmp=$(notify-send "Parsing $base_url.. Please wait..." -t 1500 -p)
@@ -38,10 +38,10 @@ mp4up_link=$(printf "$links" | grep "mp4upload")
 
 notify-send "Fetching doodstream links" -r $tmp
 dood_id=$(printf "$links" | sed -n "s_.*dood.*/e/__p")
-[ -z "$dood_id" ] || dood_link=$(curl -A "$agent" -s "https://dood.ws/d/$dood_id" | sed -nE 's/<a href="(.*)" class="btn.*justify.*/\1/p')
+[ -z "$dood_id" ] || dood_link=$(curl -A "$agent" -s "https://dood.wf/d/$dood_id" | sed -nE 's/<a href="(.*)" class="btn.*justify.*/\1/p')
 sleep 0.5
-[ -z "$dood_link" ] || dood_video=$(curl -A "$agent" -s "https://dood.ws${dood_link}" | sed -nE "s/.*window.open.*'(.*)',.*/\1/p")
-[ -z "$dood_video" ] || down "https://dood.ws/d/$dood_id" "$dood_video" "doodstream"
+[ -z "$dood_link" ] || dood_video=$(curl -A "$agent" -s "https://dood.wf${dood_link}" | sed -nE "s/.*window.open.*'(.*)',.*/\1/p")
+[ -z "$dood_video" ] || down "https://dood.wf/d/$dood_id" "$dood_video" "doodstream"
 
 notify-send "Fetching xstreamcdn links" -r $tmp
 fb_id=$(printf "$links" | sed -n "s_.*fembed.*/v/__p")
@@ -50,17 +50,8 @@ fb_id=$(printf "$links" | sed -n "s_.*fembed.*/v/__p")
 
 id=$(printf "%s" "$refr" | sed -nE 's/.*id=(.*)&title.*/\1/p')
 
-notify-send "Fetching xstreamcdn links" -r $tmp
+notify-send "Fetching animixplay links" -r $tmp
 [ -z "$id" ] || ani_video="$(curl -s "https://animixplay.to/api/live$(printf "%sLTXs3GrU8we9O%s" "$id" "$(printf "$id" | base64)" | base64)" -A "$agent" -I | sed -nE 's_location: (.*)_\1_p' | cut -d"#" -f2 | base64 -d)"
 [ -z "$ani_video" ] || down "https://animixplay.to" "$ani_video" "animixplay"
-
-notify-send "Fetching goload links" -r $tmp
-secret_key=$(printf "%s" "$resp" | sed -n '2p' | tr -d "\n" | od -A n -t x1 | tr -d " |\n")
-iv=$(printf "%s" "$resp" | sed -n '3p' | tr -d "\n" | od -A n -t x1 | tr -d " |\n")
-second_key=$(printf "%s" "$resp" | sed -n '4p' | tr -d "\n" | od -A n -t x1 | tr -d " |\n")
-token=$(printf "%s" "$resp" | head -1 | base64 -d | openssl enc -d -aes256 -K "$secret_key" -iv "$iv" | sed -nE 's/.*&(token.*)/\1/p')
-ajax=$(printf '%s' "$id" | openssl enc -e -aes256 -K "$secret_key" -iv "$iv" -a)
-video="$(curl -A "$agent" -s -H "X-Requested-With:XMLHttpRequest" "${base_url}/encrypt-ajax.php?id=${ajax}&alias=${id}&${token}" | sed -e 's/{"data":"//' -e 's/"}/\n/' -e 's/\\//g' | base64 -d | openssl enc -d -aes256 -K "$second_key" -iv "$iv" | sed -e 's/\].*/\]/' -e 's/\\//g' | grep -Eo 'https:\/\/[-a-zA-Z0-9@:%._\+~#=][a-zA-Z0-9][-a-zA-Z0-9@:%_\+.~#?&\/\/=]*' | head -4 | tail -1)"
-[ -z "$video" ] || down "$base_url" "$video" "goload"
 
 notify-send -u critical "no more mirror links..sorry" -r $tmp && exit 0
