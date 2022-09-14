@@ -4,6 +4,7 @@
 - [center](https://tools.suckless.org/dmenu/patches/center/) 
 - [line-height](https://tools.suckless.org/dmenu/patches/line-height/) 
 - [mouse-support](https://tools.suckless.org/dmenu/patches/mouse-support/) 
+- [case-insensitive](https://tools.suckless.org/dmenu/patches/case-insensitive/)
 
 ## St 0.8.5 with Applied Patches
 

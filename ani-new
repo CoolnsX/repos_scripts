@@ -40,8 +40,8 @@ notify-send "Fetching doodstream links" -r $tmp
 dood_id=$(printf "$links" | sed -n "s_.*dood.*/e/__p")
 [ -z "$dood_id" ] || dood_link=$(curl -A "$agent" -s "https://dood.wf/d/$dood_id" | sed -nE 's/<a href="(.*)" class="btn.*justify.*/\1/p')
 sleep 0.5
-[ -z "$dood_link" ] || dood_video=$(curl -A "$agent" -s "https://dood.wf${dood_link}" | sed -nE "s/.*window.open.*'(.*)',.*/\1/p")
-[ -z "$dood_video" ] || down "https://dood.wf/d/$dood_id" "$dood_video" "doodstream"
+[ -z "$dood_link" ] || dood_video=$(curl -A "$agent" -s "https://dood.ws${dood_link}" | sed -nE "s/.*window.open.*'(.*)',.*/\1/p")
+[ -z "$dood_video" ] || down "https://dood.ws/d/$dood_id" "$dood_video" "doodstream"
 
 notify-send "Fetching xstreamcdn links" -r $tmp
 fb_id=$(printf "$links" | sed -n "s_.*fembed.*/v/__p")
