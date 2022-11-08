@@ -13,7 +13,6 @@ if [ "$*" = "add" ];then
 	notify-send "Already bookmarked"
     else
 	printf "%s" "$data" >> "$file"
-	printf "\n" >> "$file"
 	notify-send "Bookmarked" "$data"
     fi
 elif [ "$*" = "rm" ];then
@@ -24,3 +23,6 @@ elif [ "$*" = "rm" ];then
 else
     xdotool type "$(cat "$file" | sed '/^$/d' | dmenu -p "Put-bookmark :" | tr '\`' '\n')"
 fi
+
+sed -i '/^$/d' "$file"
+printf "\n" >> "$file"
