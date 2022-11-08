@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
 mkdir -p $HOME/.cache/pirokit
-query=$(printf "" | dmenu -p "Search Torrent: ")
+query=$(printf "" | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -p "Search Torrent: ")
 baseurl="https://www.1337xx.to"
 cachedir="$HOME/.cache/pirokit"
 query="$(sed 's/ /%20/g' <<<$query)"
@@ -27,11 +27,11 @@ awk '{print NR " - ["$0"]"}' $cachedir/size.bw > $cachedir/tmp && mv $cachedir/t
 awk '{print "[S:"$1 ", L:"$2"]" }' $cachedir/seedleech.bw > $cachedir/tmp && mv $cachedir/tmp $cachedir/seedleech.bw
 
 # Getting the line number
-LINE=$(paste -d\   $cachedir/size.bw $cachedir/seedleech.bw $cachedir/titles.bw | dmenu -l 25 | cut -d\- -f1 | awk '{$1=$1; print}')
+LINE=$(paste -d\   $cachedir/size.bw $cachedir/seedleech.bw $cachedir/titles.bw | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 25 | cut -d\- -f1 | awk '{$1=$1; print}')
 [ -z "$LINE" ] && notify-send -u critical "Err.. No torrent selected!!" && exit 0
 
 url=$(head -n $LINE $cachedir/links.bw | tail -n +$LINE)
 
 # Requesting page for magnet link
 magnet=$(curl -s "${baseurl}${url}" | sed -nE 's/.*class="(.*)" href="([^"]*)" .*/\2/p')
-setsid -f st -e $HOME/repos_scripts/torrent "$magnet"
+setsid -f foot -e $HOME/repos_scripts/torrent "$magnet"

@@ -2,7 +2,7 @@
 
 down () {
 	notify-send "$3 links fetched.." -r $tmp
-	choice=$(printf "download\nwatch\nnext mirror" | bemenu --fn 'Roboto 15' -p "??" -l 10)
+	choice=$(printf "download\nwatch\nnext mirror" | bemenu --fn 'Roboto 15' -p "??" -i -c -W 0.6 -B 3 -l 10)
 	[ "$choice" = "watch" ] && setsid -f mpv --referrer="$1" "$2" --force-media-title="$url" && notify-send "opening $url in mpv" -r $tmp && exit 0
 	[ "$choice" = "next mirror" ] && return 0
 	notify-send "Downloading $url" -r $tmp
@@ -24,7 +24,7 @@ base_url="https://gogohd.net"
 agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"
 trap "exit 0" INT HUP
 tmp=$(notify-send "Parsing $base_url.. Please wait..." -t 1500 -p)
-[ -z "$*" ] && url=$(run | bemenu --fn 'Roboto 15' -p "Select Anime: " -l 20) || url=$*
+[ -z "$*" ] && url=$(run | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 20 -p "Select Anime: ") || url=$*
 [ -z "$url" ] && notify-send -u "critical" "No anime selected" -r $tmp && exit 0 || notify-send "Loading Episode $url.." -r $tmp
 refr=$(curl -A "$agent" -s "$base_url/videos/$url" | sed -nE 's/.*iframe src="(.*)" al.*/\1/p')
 notify-send "Fetching Embed links" -r $tmp
