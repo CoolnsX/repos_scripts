@@ -1,0 +1,26 @@
+#!/bin/sh
+
+#script for bookmarking selected items and later using it..
+
+data="$(xclip -o)"
+
+file="$HOME/.cache/bookmarks"
+
+if [ "$*" = "add" ];then
+    if [ "$data" = "Error: target STRING not available" ];then
+	notify-send "Please select anything to bookmark"
+    elif grep -q "^${data}$" "$file";then
+	notify-send "Already bookmarked"
+    else
+	printf "%s\n" "$data" >> "$file"
+	notify-send "Bookmarked" "$data"
+    fi
+elif [ "$*" = "rm" ];then
+    data="$(cat "$file")"
+    [ -z "$data" ] && notify-send "Bookmark is empty" && exit 0
+    del=$(printf "%s" "$data" | dmenu -p "delete-bookmark :" | sed 's_/_\\/_g')
+    sed -E "s|^${del}$||g" .cache/bookmarks | sed '/^$/d' > "$file"
+    notify-send "Bookmarked deleted" "$del"
+else
+    xdotool type "$(cat "$file" | dmenu -p "Put-bookmark :")"
+fi
