@@ -2,25 +2,25 @@
 
 #script for bookmarking selected items and later using it..
 
-data="$(xclip -o)"
+data="$(xclip -o | tr '\n' '\`')"
 
 file="$HOME/.cache/bookmarks"
 
 if [ "$*" = "add" ];then
     if [ "$data" = "Error: target STRING not available" ];then
 	notify-send "Please select anything to bookmark"
-    elif grep -q "^${data}$" "$file";then
+    elif grep -q "${data}" "$file";then
 	notify-send "Already bookmarked"
     else
-	printf "%s\n" "$data" >> "$file"
+	printf "%s" "$data" >> "$file"
+	printf "\n" >> "$file"
 	notify-send "Bookmarked" "$data"
     fi
 elif [ "$*" = "rm" ];then
-    data="$(cat "$file")"
+    data="$(cat "$file" | sed '/^$/d' | nl -n'ln')"
     [ -z "$data" ] && notify-send "Bookmark is empty" && exit 0
-    del=$(printf "%s" "$data" | dmenu -p "delete-bookmark :" | sed 's_/_\\/_g')
-    sed -E "s|^${del}$||g" .cache/bookmarks | sed '/^$/d' > "$file"
-    notify-send "Bookmarked deleted" "$del"
+    del=$(printf "%s" "$data" | dmenu -p "delete-bookmark :" | cut -f1)
+    [ -z "$del" ] || (sed -i "${del}d" "$file" && notify-send "Bookmarked deleted")
 else
-    xdotool type "$(cat "$file" | dmenu -p "Put-bookmark :")"
+    xdotool type "$(cat "$file" | sed '/^$/d' | dmenu -p "Put-bookmark :" | tr '\`' '\n')"
 fi
