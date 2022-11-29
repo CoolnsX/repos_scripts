@@ -61,12 +61,12 @@ loop(){
 		pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^\.]*).*_\1_p')
 		while [ -n "$pos" ];do
 			pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^\.]*).*_\1_p')
-			[ -z "$1" ] || printf "\033[2K\rtime remaining to next music : $pos"
+			[ -z "$1" ] || printf "\033[2K\rnext music in $pos second(s)"
 			[ -z "$pos" ] && printf "\033[2K\r\n"
 			sleep 2
 		done
 		pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^\.]*).*_\1_p')
-		[ -z "$pos" ] && pgrep -f "mpvsocket" > /dev/null && play "$(cat "$logdir/next" | sed -n 2p | cut -f2)" "$1"
+		[ -z "$pos" ] && pgrep -f "mpvsocket" > /dev/null && play "$(cat "$logdir/next" | head -1 | cut -f2)" "$1"
 	done
 }
 
