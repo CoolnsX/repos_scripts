@@ -2,26 +2,26 @@
 
 #script for bookmarking selected items and later using it..
 
-data="$(xclip -o | tr '\n' '\`')"
+data="$(wl-paste -p | tr '\n' '\`')"
 
 file="$HOME/.cache/bookmarks"
 
 if [ "$*" = "add" ];then
-    if [ "$data" = "Error: target STRING not available" ];then
-	notify-send "Please select anything to bookmark"
-    elif grep -q "${data}" "$file";then
-	notify-send "Already bookmarked"
-    else
-	printf "%s" "$data" >> "$file"
-	notify-send "Bookmarked" "$data"
-    fi
+    	if [ -z "$data" ];then
+    	   	 notify-send "Please select anything to bookmark"
+    	elif grep -q "${data}" "$file";then
+    	   	 notify-send "Already bookmarked"
+    	else
+    	   	 printf "%s" "$data" >> "$file"
+    	   	 notify-send "Bookmarked" "$data"
+    	fi
 elif [ "$*" = "rm" ];then
     data="$(cat "$file" | sed '/^$/d' | nl -n'ln')"
     [ -z "$data" ] && notify-send "Bookmark is empty" && exit 0
-    del=$(printf "%s" "$data" | dmenu -p "delete-bookmark :" | cut -f1)
+    del=$(printf "%s" "$data" | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 30 -p "delete-bookmark :" | cut -f1)
     [ -z "$del" ] || (sed -i "${del}d" "$file" && notify-send "Bookmarked deleted")
 else
-    xdotool type "$(cat "$file" | sed '/^$/d' | dmenu -p "Put-bookmark :" | tr '\`' '\n')"
+	doas ydotool type "$(cat "$file" | sed '/^$/d' | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 30 -p "Put-bookmark :" | tr '\`' '\n')"
 fi
 
 sed -i '/^$/d' "$file"

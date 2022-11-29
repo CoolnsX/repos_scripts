@@ -9,11 +9,11 @@ c_reset="\033[0m"
 down(){
     tput reset
     notify-send "Torrent: Downloading"
-    aria2c -d movies --select-file=$2 --seed-time=0 $1 && notify-send "Torrent: Download complete" && rm -f $file || notify-send -u critical "Torrent: Error!!" 
+    aria2c -d Downloads --select-file=$2 --seed-time=0 $1 && notify-send "Torrent: Download complete" && rm -f $file || notify-send -u critical "Torrent: Error!!" 
 }
 
 trap "rm -f $HOME/.cache/*.torrent;exit 0" INT HUP
-[ -z "$*" ] && magnet="$(xclip -out clipboard)" || magnet="$*"
+[ -z "$*" ] && magnet="$(wl-paste)" || magnet="$*"
 echo "$magnet"
 printf "${c_yellow}Download>>\n${c_green}[f]ull torrent\n${c_cyan}[p]artial torrent \n${c_red}[q]uit"
 printf "${c_reset}\n\tenter choice:"

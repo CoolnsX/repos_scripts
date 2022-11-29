@@ -3,9 +3,9 @@
 down () {
 	notify-send "$3 links fetched.." -r $tmp
 	choice=$(printf "download\nwatch\nnext mirror" | bemenu --fn 'Roboto 15' -p "??" -i -c -W 0.6 -B 3 -l 10)
-	[ "$choice" = "watch" ] && setsid -f mpv --referrer="$1" "$2" --force-media-title="$url" && notify-send "opening $url in mpv" -r $tmp && exit 0
+	[ "$choice" = "watch" ] && setsid -f mpv --referrer="$1" "$2" --force-media-title="$url" && notify-send -i "$icon_dir/apps/mpv.svg" "opening $url" -r $tmp && exit 0
 	[ "$choice" = "next mirror" ] && return 0
-	notify-send "Downloading $url" -r $tmp
+	notify-send -i "$icon_dir/panel/jdownloader-indicator.svg" "Downloading $url" -r $tmp
 	case $2 in
 	    *m3u*)
 		    foot -e ffmpeg -loglevel error -stats -referer "$1" -user_agent "$agent" -i "$2" -c copy "$url.mp4" && notify-send "Episode Downloaded $url" -r $tmp || (notify-send -u "critical" "Downloading failed $url" -r $tmp && exit 0);;
@@ -20,6 +20,7 @@ run () {
 	curl -s "$base_url?page=2" -A "$agent" | sed -nE 's_.*<a href="/videos/([^"]*)">_\1_p' &
 }
 
+icon_dir="/usr/share/icons/Papirus/16x16"
 base_url="https://gogohd.net"
 agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"
 trap "exit 0" INT HUP
