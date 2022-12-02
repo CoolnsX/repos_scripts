@@ -81,18 +81,8 @@ play(){
 	id=$(printf "$1" | cut -d"=" -f2 | cut -d"/" -f4 | cut -d'&' -f1)
 	[ -z "$id" ] && printf "[ youtube ] Invalid link\n" && exit 1
 
-	#next songs data
-	json_next="{
-	\"enablePersistentPlaylistPanel\": true,
-	\"tunerSettingValue\": \"AUTOMIX_SETTING_NORMAL\",
-	\"playlistId\": \"RD$id\",
-	\"isAudioOnly\": true,
-	\"context\": $(cat $logdir/context)
-	}"
-	get_data "next" "$json_next" | sed 's/playlistPanelVideoRenderer/\n/g' | sed -nE 's_.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*_\1 - \2\t\3_p' > "$next_data"
-
-	droid_agent="com.google.android.youtube/17.31.35 (Linux; U; Android 1$(head /dev/urandom | tr -dc '0-3' | cut -c1)) gzip"
 	#get song's audio url
+	droid_agent="com.google.android.youtube/17.31.35 (Linux; U; Android 1$(head /dev/urandom | tr -dc '0-3' | cut -c1)) gzip"
 	json="{
 	  \"context\": {
 	    \"client\": {
@@ -128,6 +118,16 @@ play(){
 	pgrep -f "mpvsocket" > /dev/null || (setsid -f mpv --really-quiet --input-ipc-server=/tmp/mpvsocket --idle --quiet >/dev/null && sleep 3)
 	echo "{ \"command\": [\"loadfile\", \"$audio_url\", \"replace\"] }" | socat - /tmp/mpvsocket
 	echo "currently playing : $title" > "$logdir/current"
+
+	#next songs data
+	json_next="{
+	\"enablePersistentPlaylistPanel\": true,
+	\"tunerSettingValue\": \"AUTOMIX_SETTING_NORMAL\",
+	\"playlistId\": \"RD$id\",
+	\"isAudioOnly\": true,
+	\"context\": $(cat $logdir/context)
+	}"
+	get_data "next" "$json_next" | sed 's/playlistPanelVideoRenderer/\n/g' | sed -nE 's_.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*_\1 - \2\t\3_p' > "$next_data"
 }
 
 search_play(){
@@ -149,7 +149,7 @@ play_next(){
 	#call this by script-name "play_next" for playing next song immediately
 	#or add "menu" after "play_next" to show menu for selecting and playing next song immediately
 	#like this script-namr "play_next" "menu"
-	[ -z "$1" ] && play "$(cat "$logdir/next" | sed -n 2p | cut -f2)" "verbose" || play "$(cat $logdir/{current,next} | bemenu --fn 'Roboto 15' -i -c -W 0.5 -B 3 -p "play: " -l 30 | cut -f2)" "verbose"
+	[ -z "$1" ] && play "$(cat "$logdir/next" | head -1 | cut -f2)" "verbose" || play "$(cat $logdir/{current,next} | bemenu --fn 'Roboto 15' -i -c -W 0.5 -B 3 -p "play: " -l 30 | cut -f2)" "verbose"
 }
 
 logdir="${XDG_CACHE_HOME:-$HOME/.cache/yt-music}"
