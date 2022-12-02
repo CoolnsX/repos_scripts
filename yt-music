@@ -51,6 +51,10 @@ help(){
 	exit 0
 }
 
+get_data(){
+    curl -X POST -A "$agent" -s "$base_url/youtubei/v1/$1?key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30&prettyPrint=false" -H "content-type:application/json" -H "x-youtube-client-name:67" -H "x-youtube-client-version:1.20221128.01.00" -d "$2" -b "$cookie" -e "$base_url/$3"
+}
+
 loop(){
 	#this function does exactly what it says, it should run in the background, u can even put this in startup
 	#it plays next song after the current song get played completely,it does nothing until u run the search_play function then this script kicks in
@@ -76,13 +80,26 @@ play(){
 	#call it by script-name "play" "valid_youtube_id_or_url"
 	id=$(printf "$1" | cut -d"=" -f2 | cut -d"/" -f4 | cut -d'&' -f1)
 	[ -z "$id" ] && printf "[ youtube ] Invalid link\n" && exit 1
+
+	#next songs data
+	json_next="{
+	\"enablePersistentPlaylistPanel\": true,
+	\"tunerSettingValue\": \"AUTOMIX_SETTING_NORMAL\",
+	\"playlistId\": \"RD$id\",
+	\"isAudioOnly\": true,
+	\"context\": $(cat $logdir/context)
+	}"
+	get_data "next" "$json_next" | sed 's/playlistPanelVideoRenderer/\n/g' | sed -nE 's_.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*_\1 - \2\t\3_p' > "$next_data"
+
+	droid_agent="com.google.android.youtube/17.31.35 (Linux; U; Android 1$(head /dev/urandom | tr -dc '0-3' | cut -c1)) gzip"
+	#get song's audio url
 	json="{
 	  \"context\": {
 	    \"client\": {
 	      \"clientName\": \"ANDROID\",
 	      \"clientVersion\": \"17.31.35\",
 	      \"androidSdkVersion\": 30,
-	      \"userAgent\": \"$agent\",
+	      \"userAgent\": \"$droid_agent\",
 	      \"hl\": \"en\",
 	      \"timeZone\": \"UTC\",
 	      \"utcOffsetMinutes\": 0
@@ -98,14 +115,12 @@ play(){
 	  \"racyCheckOk\": true
 	}"
 	
-	#main logic
-	curl -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.115 Safari/537.36" -s "https://www.youtube.com/watch?v=$id&bpctr=9999999999&has_verified=1" -c "$cookie" | sed 's/compactVideoRenderer/\n/g' | sed -nE 's_.*videoId":"([^"]*)".*label":"([^"]*)".*_\2\t\1_p' | sed "/$id/d;$ d;/^[0-9]* minutes/d" > "$next_data"
-	data=$(curl -X POST -A "$agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w&prettyPrint=false" -H "content-type:application/json" -H "x-youtube-client-name:21" -H "x-youtube-client-version:17.31.35" -d "$json" -b "$cookie" | sed -nE 's_.*itag":[0-9]*,"url":"([^"]*)".*"title":"([^"]*)".*_\1\n\2_p')
+	data=$(curl -X POST -A "$droid_agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w&prettyPrint=false" -H "content-type:application/json" -H "x-youtube-client-name:21" -H "x-youtube-client-version:17.31.35" -d "$json" -b "$cookie" | sed -nE 's_.*itag":[0-9]*,"url":"([^"]*)".*"title":"([^"]*)".*_\1\n\2_p')
 	title=$(printf "%s" "$data" | tail -1)
 	audio_url=$(printf "%s" "$data" | head -1)
 	if [ -n "$2" ];then
 		printf "Name >> %s\n" "$title"
-		printf "videoID >> %s\n" "$1"
+		printf "videoID >> %s\n" "$id"
 		printf "Audio URL >> %s\n" "$audio_url"
 	fi
 	
@@ -119,14 +134,14 @@ search_play(){
 	#run this if u r starting the script first time like this
 	#call this by "script-name" "search_play" "search_query"
 	[ -z "$1" ] && exit 1
-	context=$(curl -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.115 Safari/537.36" -s "https://www.youtube.com/" -c "$cookie" | sed -nE 's|.*INNERTUBE_CONTEXT":(.*),"INNERTUBE_CONTEXT_CLIENT_NAME.*|\1|p')
+	curl -A "$agent" -s "$base_url/" -c "$cookie" | sed -nE 's|.*INNERTUBE_CONTEXT":(.*),"INNERTUBE_CONTEXT_CLIENT_NAME.*|\1|p' > $logdir/context
 
 	json_search="{
-	\"context\" : $context,
+	\"context\" : $(cat $logdir/context),
 	\"query\": \"$1\",
 	\"params\": \"EgWKAQIIAWoKEAMQBBAJEAoQBQ%3D%3D\"
 	}"
-	res=$(curl -X POST -A "$agent" -s "https://www.youtube.com/youtubei/v1/search?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w&prettyPrint=false" -H "content-type:application/json" -H "x-youtube-client-name:21" -H "x-youtube-client-version:17.31.35" -d "$json_search" -b "$cookie" | sed 's/videoRenderer/\n/g' | sed -nE 's_.*videoId":"([^"]*)".*\],"accessibility":\{"accessibilityData":\{"label":"([^"]*)".*_\2\t\1_p' | bemenu --fn 'Roboto 15' -i -c -W 0.5 -B 3 -p "Play: " -l 30 | cut -f2)
+	res=$(get_data "search" "$json_search" "search?q=$(printf "$1" | tr ' ' '+')" | sed 's/watchEndpoint"/\n/g' | sed -nE 's_.*videoId":"([^"]*)",.*label":"Play ([^"]*)".*_\2\t\1_p' | bemenu --fn 'Roboto 15' -i -c -W 0.5 -B 3 -p "Play: " -l 30 | cut -f2)
 	[ -z "$res" ] || play "$res" "verbose"
 }
 
@@ -138,11 +153,12 @@ play_next(){
 }
 
 logdir="${XDG_CACHE_HOME:-$HOME/.cache/yt-music}"
+base_url="https://music.youtube.com"
 [ -d "$logdir" ] || mkdir "$logdir"
 cookie="$logdir/cookies"
 next_data="$logdir/next"
-agent="com.google.android.youtube/17.31.35 (Linux; U; Android 1$(head /dev/urandom | tr -dc '0-3' | cut -c1)) gzip"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"
 
 #call this script by script-name "function_name" "query"
 [ -z "$1" ] && help
-$1 "$2"
+$1 "$2" "$3"
