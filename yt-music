@@ -65,7 +65,7 @@ loop(){
 		pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^\.]*).*_\1_p')
 		while [ -n "$pos" ];do
 			pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^\.]*).*_\1_p')
-			[ -z "$1" ] || printf "\033[2K\rnext music in $pos second(s)"
+			[ -z "$1" ] || printf "\033[2K\rnext music in $pos second(s)%s" "$(echo '{ "command": ["get_property", "pause"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^,]*).*_\1_p' | sh && printf " (paused)")"
 			[ -z "$pos" ] && printf "\033[2K\r\n"
 			sleep 2
 		done
@@ -78,17 +78,18 @@ play(){
 	#this function does all the heavy lifting of extracting url from given videoId
 	#it's also callable, u can use this function to play ur custom youtube URLs
 	#call it by script-name "play" "valid_youtube_id_or_url"
-	id=$(printf "$1" | cut -d"=" -f2 | cut -d"/" -f4 | cut -d'&' -f1)
+	id=$(printf "%s" "$1" | cut -d"=" -f2 | cut -d"/" -f4 | cut -d'&' -f1)
 	[ -z "$id" ] && printf "[ youtube ] Invalid link\n" && exit 1
 
 	#get song's audio url
-	droid_agent="com.google.android.youtube/17.31.35 (Linux; U; Android 1$(head /dev/urandom | tr -dc '0-3' | cut -c1)) gzip"
+	random_no=$(head /dev/urandom | tr -dc '0-2' | cut -c1)
+	droid_agent="com.google.android.youtube/17.46.37 (Linux; U; Android 1$random_no) gzip"
 	json="{
 	  \"context\": {
 	    \"client\": {
 	      \"clientName\": \"ANDROID\",
-	      \"clientVersion\": \"17.31.35\",
-	      \"androidSdkVersion\": 30,
+	      \"clientVersion\": \"17.46.37\",
+	      \"androidSdkVersion\": $((random_no + 29)),
 	      \"userAgent\": \"$droid_agent\",
 	      \"hl\": \"en\",
 	      \"timeZone\": \"UTC\",
@@ -96,6 +97,7 @@ play(){
 	    }
 	  },
 	  \"videoId\": \"$id\",
+	  \"params\": \"8AEB\",
 	  \"playbackContext\": {
 	    \"contentPlaybackContext\": {
 	      \"html5Preference\": \"HTML5_PREF_WANTS\"
@@ -105,7 +107,7 @@ play(){
 	  \"racyCheckOk\": true
 	}"
 	
-	data=$(curl -X POST -A "$droid_agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w&prettyPrint=false" -H "content-type:application/json" -H "x-youtube-client-name:21" -H "x-youtube-client-version:17.31.35" -d "$json" -b "$cookie" | sed -nE 's_.*itag":[0-9]*,"url":"([^"]*)".*"title":"([^"]*)".*_\1\n\2_p')
+	data=$(curl -X POST -A "$droid_agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w&prettyPrint=false" -H "content-type:application/json" -H "x-youtube-client-name:21" -H "x-youtube-client-version:17.46.37" -d "$json" -b "$cookie" | sed -nE 's_.*itag":251,"url":"([^"]*)".*"title":"([^"]*)".*_\1\n\2_p')
 	title=$(printf "%s" "$data" | tail -1)
 	audio_url=$(printf "%s" "$data" | head -1)
 	if [ -n "$2" ];then
@@ -123,11 +125,11 @@ play(){
 	json_next="{
 	\"enablePersistentPlaylistPanel\": true,
 	\"tunerSettingValue\": \"AUTOMIX_SETTING_NORMAL\",
-	\"playlistId\": \"RD$id\",
+	\"playlistId\": \"RDAMVM$id\",
 	\"isAudioOnly\": true,
 	\"context\": $(cat $logdir/context)
 	}"
-	get_data "next" "$json_next" | sed 's/playlistPanelVideoRenderer/\n/g' | sed -nE 's_.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*_\1 - \2\t\3_p' > "$next_data"
+	get_data "next" "$json_next" | sed 's/playlistPanelVideoRenderer/\n/g' | sed -nE 's_.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*_\1 - \2\t\3_p' | sed "/$id/d" > "$next_data" & >/dev/null
 }
 
 search_play(){
