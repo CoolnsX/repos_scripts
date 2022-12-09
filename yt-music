@@ -116,10 +116,12 @@ play(){
 		printf "Audio URL >> %s\n" "$audio_url"
 	fi
 	
-	curl -s "https://i.ytimg.com/vi/$id/default.jpg" -o "$logdir/default.jpg" && notify-send -i "$logdir/default.jpg" "Now Playing" "$title" -t 5000
+	curl -s "https://i.ytimg.com/vi/$id/hqdefault.jpg" -o "$logdir/default.jpg" && notify-send -i "$logdir/default.jpg" "Now Playing" "$title" -t 5000
 	pgrep -f "mpvsocket" > /dev/null || (setsid -f mpv --really-quiet --input-ipc-server=/tmp/mpvsocket --idle --quiet >/dev/null && sleep 3)
 	echo "{ \"command\": [\"loadfile\", \"$audio_url\", \"replace\"] }" | socat - /tmp/mpvsocket
-	echo "currently playing : $title" > "$logdir/current"
+	cut -d'>' -f2 $logdir/current > $logdir/prev
+	prev_id=$(cat $logdir/prev)
+	printf "currently playing : %s >%s\n" "$title" "$id" > "$logdir/current"
 
 	#next songs data
 	json_next="{
@@ -129,18 +131,19 @@ play(){
 	\"isAudioOnly\": true,
 	\"context\": $(cat $logdir/context)
 	}"
-	get_data "next" "$json_next" | sed 's/playlistPanelVideoRenderer/\n/g' | sed -nE 's_.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*_\1 - \2\t\3_p' | sed "/$id/d" > "$next_data" & >/dev/null
+	get_data "next" "$json_next" | sed 's/playlistPanelVideoRenderer/\n/g' | sed -nE 's_.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*_\1 - \2\t\3_p' | sed "/$id/d;/$prev_id/d" > "$next_data" & >/dev/null
 }
 
 search_play(){
 	#run this if u r starting the script first time like this
 	#call this by "script-name" "search_play" "search_query"
-	[ -z "$1" ] && exit 1
+	[ -z "$1" ] && query=$(:| bemenu --fn 'Roboto 15' -i -B 3 -p "Yt-music [search]: ") || query="$1"
+	[ -z "$query" ] && notify-send "Err.. Search query empty" -u critical && exit 1
 	curl -A "$agent" -s "$base_url/" -c "$cookie" | sed -nE 's|.*INNERTUBE_CONTEXT":(.*),"INNERTUBE_CONTEXT_CLIENT_NAME.*|\1|p' > $logdir/context
 
 	json_search="{
 	\"context\" : $(cat $logdir/context),
-	\"query\": \"$1\",
+	\"query\": \"$query\",
 	\"params\": \"EgWKAQIIAWoKEAMQBBAJEAoQBQ%3D%3D\"
 	}"
 	res=$(get_data "search" "$json_search" "search?q=$(printf "$1" | tr ' ' '+')" | sed 's/watchEndpoint"/\n/g' | sed -nE 's_.*videoId":"([^"]*)",.*label":"Play ([^"]*)".*_\2\t\1_p' | bemenu --fn 'Roboto 15' -i -c -W 0.5 -B 3 -p "Play: " -l 30 | cut -f2)
