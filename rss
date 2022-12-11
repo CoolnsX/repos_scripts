@@ -6,4 +6,4 @@ name=$(printf "%s" "$data" | sed -nE 's_^.*Please\] (.*)</title>.*size>(.*)</sub
 [ -z "$name" ] && notify-send -u critical "Err.. Query empty" -r $tmp && exit 0
 id=$(printf "$name" | sed -nE 's/.*\[(.*)\].*/\1/p')
 magnet=$(printf "%s" "$data" | sed -nE "s_.*<link>(.*$id.*)</link>.*_\1_p" | sed 's/amp;//g')
-setsid -f foot -e $HOME/repos_scripts/torrent "$magnet"
+setsid -f $TERMINAL -e $HOME/repos_scripts/torrent "$magnet"

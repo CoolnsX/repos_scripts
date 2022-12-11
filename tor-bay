@@ -22,4 +22,4 @@ name_seed=$(printf "%s" "$data" | sed -nE 's/.*name":"(.*)","info_hash.*seeders"
 sel=$(display "$size" "$name_seed" | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 25 -p "select torrent >" | cut -d" " -f3-)
 [ -z "$sel" ] && notify-send -u critical "No Torrent Selected" -r $tmp && exit 0 || notify-send "Selected $sel" -r $tmp
 magnet="magnet:?xt=urn:btih:$(printf "%s" "$data" | sed -nE 's/.*name":"(.*)","info_hash":"(.*)",.*leech.*/\2\t\1/p' | sed -n "s/\t$sel//p")"
-setsid -f foot -e $HOME/repos_scripts/torrent "$magnet"
+setsid -f $TERMINAL -e $HOME/repos_scripts/torrent "$magnet"

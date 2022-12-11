@@ -8,9 +8,9 @@ down () {
 	notify-send -i "$icon_dir/panel/jdownloader-indicator.svg" "Downloading $url" -r $tmp
 	case $2 in
 	    *m3u*)
-		    foot -e ffmpeg -loglevel error -stats -referer "$1" -user_agent "$agent" -i "$2" -c copy "$url.mp4" && notify-send "Episode Downloaded $url" -r $tmp || (notify-send -u "critical" "Downloading failed $url" -r $tmp && exit 0);;
+		    $TERMINAL -e ffmpeg -loglevel error -stats -referer "$1" -user_agent "$agent" -i "$2" -c copy "$url.mp4" && notify-send "Episode Downloaded $url" -r $tmp || (notify-send -u "critical" "Downloading failed $url" -r $tmp && exit 0);;
 	    *)
-		    foot -e aria2c -U "$agent" --check-certificate=false --summary-interval=0 -x 16 -s 16 --referer="$1" "$2" -o "$url.mp4" --download-result=hide && notify-send "Episode Downloaded $url" -r $tmp || (notify-send -u "critical" "Downloading failed $url" -r $tmp && exit 0);;
+		    $TERMINAL -e aria2c -U "$agent" --check-certificate=false --summary-interval=0 -x 16 -s 16 --referer="$1" "$2" -o "$url.mp4" --download-result=hide && notify-send "Episode Downloaded $url" -r $tmp || (notify-send -u "critical" "Downloading failed $url" -r $tmp && exit 0);;
 	esac
 	exit 0
 }

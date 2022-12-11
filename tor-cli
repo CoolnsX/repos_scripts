@@ -34,4 +34,4 @@ url=$(head -n $LINE $cachedir/links.bw | tail -n +$LINE)
 
 # Requesting page for magnet link
 magnet=$(curl -s "${baseurl}${url}" | sed -nE 's/.*class="(.*)" href="([^"]*)" .*/\2/p')
-setsid -f foot -e $HOME/repos_scripts/torrent "$magnet"
+setsid -f $TERMINAL -e $HOME/repos_scripts/torrent "$magnet"
