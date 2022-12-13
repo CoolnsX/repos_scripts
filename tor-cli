@@ -1,37 +1,6 @@
-#!/usr/bin/bash
+#!/bin/sh
 
-mkdir -p $HOME/.cache/pirokit
-query=$(printf "" | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -p "Search Torrent: ")
-baseurl="https://www.1337xx.to"
-cachedir="$HOME/.cache/pirokit"
-query="$(sed 's/ /%20/g' <<<$query)"
-curl -s "$baseurl/search/$query/1/" > $cachedir/tmp.html
-
-# Get Titles
-grep -o '<a href="/torrent/.*</a>' $cachedir/tmp.html | sed 's/<[^>]*>//g' > $cachedir/titles.bw
-result_count=$(wc -l $cachedir/titles.bw | awk '{print $1}')
-[ "$result_count" -lt 1 ] && notify-send "😔 No Result found. Try again 🔴" && exit 0
-
-# Seeders and Leechers
-grep -o '<td class="coll-2 seeds.*</td>\|<td class="coll-3 leeches.*</td>' $cachedir/tmp.html | sed 's/<[^>]*>//g' | sed 'N;s/\n/ /' > $cachedir/seedleech.bw
-
-# Size
-grep -o '<td class="coll-4 size.*</td>' $cachedir/tmp.html | sed 's/<span class="seeds">.*<\/span>//g' | sed -e 's/<[^>]*>//g' > $cachedir/size.bw
-
-# Links
-grep -E '/torrent/' $cachedir/tmp.html | sed -E 's#.*(/torrent/.*)/">.*/#\1#' | sed 's/td>//g' > $cachedir/links.bw
-
-# Clearning up some data to display
-sed 's/\./ /g; s/\-/ /g' $cachedir/titles.bw | sed 's/[^A-Za-z0-9 ]//g' | tr -s " " > $cachedir/tmp && mv $cachedir/tmp $cachedir/titles.bw
-awk '{print NR " - ["$0"]"}' $cachedir/size.bw > $cachedir/tmp && mv $cachedir/tmp $cachedir/size.bw
-awk '{print "[S:"$1 ", L:"$2"]" }' $cachedir/seedleech.bw > $cachedir/tmp && mv $cachedir/tmp $cachedir/seedleech.bw
-
-# Getting the line number
-LINE=$(paste -d\   $cachedir/size.bw $cachedir/seedleech.bw $cachedir/titles.bw | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 25 | cut -d\- -f1 | awk '{$1=$1; print}')
-[ -z "$LINE" ] && notify-send -u critical "Err.. No torrent selected!!" && exit 0
-
-url=$(head -n $LINE $cachedir/links.bw | tail -n +$LINE)
-
-# Requesting page for magnet link
-magnet=$(curl -s "${baseurl}${url}" | sed -nE 's/.*class="(.*)" href="([^"]*)" .*/\2/p')
-setsid -f $TERMINAL -e $HOME/repos_scripts/torrent "$magnet"
+[ -z "$*" ] && query=$(printf "" | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -p "Search torrent: ") || query=$*
+[ -z "$query" ] && exit 0
+magnet=$(curl -s "https://thepiratebay0.org/search/$query" | tr '\n' ' ' | sed -e 's_<div_\n_g;s_</tr>_\n_g;s_&nbsp\;__g' | sed -nE 's_.*title.*">([^<]*).*a href="(magnet[^"]*)".*Size ([^,]*).*">([^<]*)<.*<.*_\[size:\3,se:\4\]\t\1\t\2_p' | fzf -d'\t' --with-nth ..2 | cut -f3)
+[ -z "$magnet" ] || setsid -f $TERMINAL -e $HOME/repos_scripts/torrent "$magnet"

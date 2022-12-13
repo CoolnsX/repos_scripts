@@ -18,15 +18,14 @@ notify-send "making changes permanent.." -r 2
 sed -i "s/$old/$accent/g" $HOME/.config/dunst/dunstrc
 sed -i "s/$old/$accent/g" $HOME/.config/bspwm/bspwmrc
 sed -i "s/$old/$accent/g" $HOME/.config/sxhkd/sxhkdrc
-sed -i "s/$old/$accent/g" $HOME/setwall
+sed -i "s/$old/$accent/g" $HOME/repos_scripts/setwall
 doas sed -i "s/$old/$accent/g" /usr/share/themes/Materia-dark-compact/gtk-3.0/gtk.css
 doas sed -i "s/$old/$accent/g" /usr/share/themes/Materia-dark-compact/gtk-2.0/gtkrc
 sed -i "s_${oldimg}_${img}_g" $HOME/.config/bspwm/bspwmrc
-sed -i "s_${oldimg}_${img}_g" $HOME/setwall
+sed -i "s_${oldimg}_${img}_g" $HOME/repos_scripts/setwall
 killall dunst
 pkill -USR1 -x sxhkd
 notify-send "generating terminal colorscheme.." -r 2
 $HOME/coolterm/run -t 'xres' "$img"
-$HOME/coolterm/run -t 'lxterm' "$img"
 xrdb -merge -I$HOME ~/.Xresources
 notify-send "Everything Done!!" -r 2
