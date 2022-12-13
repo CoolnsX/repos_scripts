@@ -6,9 +6,14 @@
 
 ## bkmark
 
+- only works on wayland
+
 [bkmark.webm](https://user-images.githubusercontent.com/76195824/207424619-dd64a520-877d-4d3e-a1ad-f3b400be68eb.webm)
 
 ## setwall
+
+- Caution: don't blindly run this script as it edits the file on system level, read the actual code before proceeding
+- this only works for St and bspwm (hyprland with foot coming soon)
 
 [setwall.webm](https://user-images.githubusercontent.com/76195824/207424678-068deb8d-50e9-4702-ad47-3b5548819459.webm)
 
@@ -26,6 +31,6 @@
 
 ## yt-music
 
-- cli based youtube music scraper and player (who uses browser for listening music 🙂)
+- cli based youtube music scraper and player (who uses browser for listening music?? 🙂)
 
 [yt-music.webm](https://user-images.githubusercontent.com/76195824/207424794-01400a51-177e-4b35-a839-34f1705708a9.webm)
