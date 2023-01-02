@@ -70,7 +70,7 @@ loop(){
 			sleep 2
 		done
 		pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^\.]*).*_\1_p')
-		[ -z "$pos" ] && pgrep -f "mpvsocket" > /dev/null && play "$(cat "$logdir/next" | head -1 | cut -f2)" "$1"
+		[ -z "$pos" ] && pgrep -f "mpvsocket" > /dev/null && play "$(sed -n "$(head /dev/urandom | tr -dc '1-9' | cut -c1)p" "$logdir/next")" "$1"
 	done
 }
 
@@ -78,7 +78,8 @@ play(){
 	#this function does all the heavy lifting of extracting url from given videoId
 	#it's also callable, u can use this function to play ur custom youtube URLs
 	#call it by script-name "play" "valid_youtube_id_or_url"
-	id=$(printf "%s" "$1" | cut -d"=" -f2 | cut -d"/" -f4 | cut -d'&' -f1)
+	title=$(printf "%s" "$1" | cut -f1)
+	id=$(printf "%s" "$1" | cut -f2 | cut -d"=" -f2 | cut -d"/" -f4 | cut -d'&' -f1)
 	[ -z "$id" ] && printf "[ youtube ] Invalid link\n" && exit 1
 
 	#get song's audio url
@@ -107,20 +108,18 @@ play(){
 	  \"racyCheckOk\": true
 	}"
 	
-	data=$(curl -X POST -A "$droid_agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w&prettyPrint=false" -H "content-type:application/json" -H "x-youtube-client-name:21" -H "x-youtube-client-version:17.46.37" -d "$json" -b "$cookie" | sed -nE 's_.*itag":251,"url":"([^"]*)".*"title":"([^"]*)".*_\1\n\2_p')
-	title=$(printf "%s" "$data" | tail -1)
-	audio_url=$(printf "%s" "$data" | head -1)
+	audio_url=$(curl -X POST -A "$droid_agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w&prettyPrint=false" -H "content-type:application/json" -H "x-youtube-client-name:21" -H "x-youtube-client-version:17.46.37" -d "$json" -b "$cookie" | sed -nE 's_.*itag":251,"url":"([^"]*)".*_\1_p')
 	if [ -n "$2" ];then
 		printf "Name >> %s\n" "$title"
 		printf "videoID >> %s\n" "$id"
 		printf "Audio URL >> %s\n" "$audio_url"
 	fi
 	
-	curl -s "https://i.ytimg.com/vi/$id/hqdefault.jpg" -o "$logdir/default.jpg" && notify-send -i "$logdir/default.jpg" "Now Playing" "$title" -t 5000
+	curl -s "https://i.ytimg.com/vi/$id/hqdefault.jpg" -o - | convert - -crop 270x270+105+45 "$logdir/default.jpg" && notify-send -i "$logdir/default.jpg" "Now Playing" "$title" -t 5000
 	pgrep -f "mpvsocket" > /dev/null || (setsid -f mpv --really-quiet --input-ipc-server=/tmp/mpvsocket --idle --quiet >/dev/null && sleep 3)
 	echo "{ \"command\": [\"loadfile\", \"$audio_url\", \"replace\"] }" | socat - /tmp/mpvsocket
-	cut -d'>' -f2 $logdir/current > $logdir/prev
-	prev_id=$(cat $logdir/prev)
+	cut -d':' -f2 "$logdir/current" > "$logdir/prev"
+	prev_id=$(cut -d'>' -f2 "$logdir/prev")
 	printf "currently playing : %s >%s\n" "$title" "$id" > "$logdir/current"
 
 	#next songs data
@@ -129,9 +128,9 @@ play(){
 	\"tunerSettingValue\": \"AUTOMIX_SETTING_NORMAL\",
 	\"playlistId\": \"RDAMVM$id\",
 	\"isAudioOnly\": true,
-	\"context\": $(cat $logdir/context)
+	\"context\": $(cat "$logdir/context")
 	}"
-	get_data "next" "$json_next" | sed 's/playlistPanelVideoRenderer/\n/g' | sed -nE 's_.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*_\1 - \2\t\3_p' | sed "/$id/d;/$prev_id/d" > "$next_data" & >/dev/null
+	get_data "next" "$json_next" | sed 's/playlistPanelVideoRenderer/\n/g' | sed -nE 's_.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*_\1 - \2\t\3_p' | sed "/$id/d;/$prev_id/d" > "$next_data" &
 }
 
 search_play(){
@@ -139,14 +138,14 @@ search_play(){
 	#call this by "script-name" "search_play" "search_query"
 	[ -z "$1" ] && query=$(:| bemenu --fn 'Roboto 15' -i -B 3 -p "Yt-music [search]: ") || query="$1"
 	[ -z "$query" ] && notify-send "Err.. Search query empty" -u critical && exit 1
-	curl -A "$agent" -s "$base_url/" -c "$cookie" | sed -nE 's|.*INNERTUBE_CONTEXT":(.*),"INNERTUBE_CONTEXT_CLIENT_NAME.*|\1|p' > $logdir/context
+	curl -A "$agent" -s "$base_url/" -c "$cookie" | sed -nE 's|.*INNERTUBE_CONTEXT":(.*),"INNERTUBE_CONTEXT_CLIENT_NAME.*|\1|p' > "$logdir/context"
 
 	json_search="{
-	\"context\" : $(cat $logdir/context),
+	\"context\" : $(cat "$logdir/context"),
 	\"query\": \"$query\",
 	\"params\": \"EgWKAQIIAWoKEAMQBBAJEAoQBQ%3D%3D\"
 	}"
-	res=$(get_data "search" "$json_search" "search?q=$(printf "$1" | tr ' ' '+')" | sed 's/watchEndpoint"/\n/g' | sed -nE 's_.*videoId":"([^"]*)",.*label":"Play ([^"]*)".*_\2\t\1_p' | bemenu --fn 'Roboto 15' -i -c -W 0.5 -B 3 -p "Play: " -l 30 | cut -f2)
+	res=$(get_data "search" "$json_search" "search?q=$(printf "%s" "$1" | tr ' ' '+')" | sed 's/watchEndpoint"/\n/g' | sed -nE 's_.*videoId":"([^"]*)",.*label":"Play ([^"]*)".*_\2\t\1_p' | bemenu --fn 'Roboto 15' -i -c -W 0.5 -B 3 -p "Play: " -l 20)
 	[ -z "$res" ] || play "$res" "verbose"
 }
 
@@ -154,7 +153,7 @@ play_next(){
 	#call this by script-name "play_next" for playing next song immediately
 	#or add "menu" after "play_next" to show menu for selecting and playing next song immediately
 	#like this script-namr "play_next" "menu"
-	[ -z "$1" ] && play "$(cat "$logdir/next" | head -1 | cut -f2)" "verbose" || play "$(cat $logdir/{current,next} | bemenu --fn 'Roboto 15' -i -c -W 0.5 -B 3 -p "play: " -l 30 | cut -f2)" "verbose"
+	[ -z "$1" ] && play "$(sed -n "$(head /dev/urandom | tr -dc '0-9' | cut -c1)p" "$logdir/next")" "verbose" || play "$(cat "$logdir/current" "$logdir/next" | bemenu --fn 'Roboto 15' -i -c -W 0.5 -B 3 -p "play: " -l 20)" "verbose"
 }
 
 logdir="${XDG_CACHE_HOME:-$HOME/.cache/yt-music}"
