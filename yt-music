@@ -44,9 +44,11 @@ help(){
 		printf "%s\n" "$line"
 	done <<-EOF
 
-	Usage : ${0##*/} $name $args
+	Usage :
+	${0##*/} $name $args
 
-	Description : $description
+	Description :
+	$description
 	EOF
 	exit 0
 }
@@ -60,17 +62,18 @@ loop(){
 	#it plays next song after the current song get played completely,it does nothing until u run the search_play function then this script kicks in
 	#call it by script-name "loop" "print" for printing the remaining time in terminal
 	#call it by script-name "loop" for anonymously
+	trap "rm -f $logdir/next;exit" INT HUP TERM
 	while true;do
 		sleep 4
 		pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^\.]*).*_\1_p')
-		while [ -n "$pos" ];do
+		while [ "$pos" -gt 4 ];do
 			pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^\.]*).*_\1_p')
 			[ -z "$1" ] || printf "\033[2K\rnext music in $pos second(s)%s" "$(echo '{ "command": ["get_property", "pause"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^,]*).*_\1_p' | sh && printf " (paused)")"
 			[ -z "$pos" ] && printf "\033[2K\r\n"
 			sleep 2
 		done
 		pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^\.]*).*_\1_p')
-		[ -z "$pos" ] && pgrep -f "mpvsocket" > /dev/null && play "$(sed -n "$(head /dev/urandom | tr -dc '1-9' | cut -c1)p" "$logdir/next")" "$1"
+		([ "$pos" -lt 3 ] || [ -z "$pos" ]) && pgrep -f "mpvsocket" > /dev/null && [ -n "$(cat "$logdir/next")" ] && play "$(shuf -n1 "$logdir/next")" "$1"
 	done
 }
 
@@ -84,12 +87,12 @@ play(){
 
 	#get song's audio url
 	random_no=$(head /dev/urandom | tr -dc '0-2' | cut -c1)
-	droid_agent="com.google.android.youtube/17.46.37 (Linux; U; Android 1$random_no) gzip"
+	droid_agent="com.google.android.youtube/17.49.34 (Linux; U; Android 1$random_no) gzip"
 	json="{
 	  \"context\": {
 	    \"client\": {
 	      \"clientName\": \"ANDROID\",
-	      \"clientVersion\": \"17.46.37\",
+	      \"clientVersion\": \"17.49.34\",
 	      \"androidSdkVersion\": $((random_no + 29)),
 	      \"userAgent\": \"$droid_agent\",
 	      \"hl\": \"en\",
@@ -116,8 +119,9 @@ play(){
 	fi
 	
 	curl -s "https://i.ytimg.com/vi/$id/hqdefault.jpg" -o - | convert - -crop 270x270+105+45 "$logdir/default.jpg" && notify-send -i "$logdir/default.jpg" "Now Playing" "$title" -t 5000
-	pgrep -f "mpvsocket" > /dev/null || (setsid -f mpv --really-quiet --input-ipc-server=/tmp/mpvsocket --idle --quiet >/dev/null && sleep 3)
+	pgrep -f "mpvsocket" > /dev/null || (setsid -f mpv --really-quiet --input-ipc-server=/tmp/mpvsocket --idle --quiet >/dev/null && sleep 1)
 	echo "{ \"command\": [\"loadfile\", \"$audio_url\", \"replace\"] }" | socat - /tmp/mpvsocket
+	pgrep -f "yt-music loop" || echo '{"command" : ["run" ,"/home/tanveer/repos_scripts/yt-music","loop"]}' | socat - /tmp/mpvsocket
 	cut -d':' -f2 "$logdir/current" > "$logdir/prev"
 	prev_id=$(cut -d'>' -f2 "$logdir/prev")
 	printf "currently playing : %s >%s\n" "$title" "$id" > "$logdir/current"
@@ -136,7 +140,7 @@ play(){
 search_play(){
 	#run this if u r starting the script first time like this
 	#call this by "script-name" "search_play" "search_query"
-	[ -z "$1" ] && query=$(:| bemenu --fn 'Roboto 15' -i -B 3 -p "Yt-music [search]: ") || query="$1"
+	[ -z "$1" ] && query=$(:| menu "Yt-music [Search]: ") || query="$1"
 	[ -z "$query" ] && notify-send "Err.. Search query empty" -u critical && exit 1
 	curl -A "$agent" -s "$base_url/" -c "$cookie" | sed -nE 's|.*INNERTUBE_CONTEXT":(.*),"INNERTUBE_CONTEXT_CLIENT_NAME.*|\1|p' > "$logdir/context"
 
@@ -145,7 +149,7 @@ search_play(){
 	\"query\": \"$query\",
 	\"params\": \"EgWKAQIIAWoKEAMQBBAJEAoQBQ%3D%3D\"
 	}"
-	res=$(get_data "search" "$json_search" "search?q=$(printf "%s" "$1" | tr ' ' '+')" | sed 's/watchEndpoint"/\n/g' | sed -nE 's_.*videoId":"([^"]*)",.*label":"Play ([^"]*)".*_\2\t\1_p' | bemenu --fn 'Roboto 15' -i -c -W 0.5 -B 3 -p "Play: " -l 20)
+	res=$(get_data "search" "$json_search" "search?q=$(printf "%s" "$1" | tr ' ' '+')" | sed 's/watchEndpoint"/\n/g' | sed -nE 's_.*videoId":"([^"]*)",.*label":"Play ([^"]*)".*_\2\t\1_p' | menu "Yt-music [Play]: ")
 	[ -z "$res" ] || play "$res" "verbose"
 }
 
@@ -153,7 +157,11 @@ play_next(){
 	#call this by script-name "play_next" for playing next song immediately
 	#or add "menu" after "play_next" to show menu for selecting and playing next song immediately
 	#like this script-namr "play_next" "menu"
-	[ -z "$1" ] && play "$(sed -n "$(head /dev/urandom | tr -dc '0-9' | cut -c1)p" "$logdir/next")" "verbose" || play "$(cat "$logdir/current" "$logdir/next" | bemenu --fn 'Roboto 15' -i -c -W 0.5 -B 3 -p "play: " -l 20)" "verbose"
+	[ -z "$1" ] && play "$(shuf -n1 "$logdir/next")" "verbose" || ( notify-send -i "$logdir/default.jpg" "$(cut -d">" -f1 "$logdir/current" | tr ':' '\n')" && play "$(menu "YT-music [play-next]: " < "$logdir/next")" "verbose")
+}
+
+menu(){
+	bemenu --fn 'Roboto 15' -i -c -W 0.5 -B 3 -p "$1" -l 26
 }
 
 logdir="${XDG_CACHE_HOME:-$HOME/.cache/yt-music}"
@@ -164,5 +172,5 @@ next_data="$logdir/next"
 agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"
 
 #call this script by script-name "function_name" "query"
-[ -z "$1" ] && help
+[ -z "$1" ] && help "$@"
 $1 "$2" "$3"
