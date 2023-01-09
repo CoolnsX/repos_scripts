@@ -118,7 +118,7 @@ play(){
 		printf "Audio URL >> %s\n" "$audio_url"
 	fi
 	
-	curl -s "https://i.ytimg.com/vi/$id/hqdefault.jpg" -o - | convert - -crop 270x270+105+45 "$logdir/default.jpg" && notify-send -i "$logdir/default.jpg" "Now Playing" "$title" -t 5000
+	curl -s "https://i.ytimg.com/vi/$id/hqdefault.jpg" -o - | convert - -crop 270x270+105+45 "$logdir/default.jpg" && notify-send -r 5 -i "$logdir/default.jpg" "Now Playing" "$title" -t 5000
 	pgrep -f "mpvsocket" > /dev/null || (setsid -f mpv --really-quiet --input-ipc-server=/tmp/mpvsocket --idle --quiet >/dev/null && sleep 1)
 	echo "{ \"command\": [\"loadfile\", \"$audio_url\", \"replace\"] }" | socat - /tmp/mpvsocket
 	cut -d':' -f2 "$logdir/current" > "$logdir/prev"
@@ -141,7 +141,7 @@ search_play(){
 	#run this if u r starting the script first time like this
 	#call this by "script-name" "search_play" "search_query"
 	[ -z "$1" ] && query=$(:| menu "Yt-music [Search]: ") || query="$1"
-	[ -z "$query" ] && notify-send "Err.. Search query empty" -u critical && exit 1
+	[ -z "$query" ] && notify-send "Err.. Search query empty" -u critical -r 5 && exit 1
 	curl -A "$agent" -s "$base_url/" -c "$cookie" | sed -nE 's|.*INNERTUBE_CONTEXT":(.*),"INNERTUBE_CONTEXT_CLIENT_NAME.*|\1|p' > "$logdir/context"
 
 	json_search="{
@@ -157,7 +157,7 @@ play_next(){
 	#call this by script-name "play_next" for playing next song immediately
 	#or add "menu" after "play_next" to show menu for selecting and playing next song immediately
 	#like this script-name "play_next" "menu"
-	[ -z "$1" ] && play "$(shuf -n1 "$logdir/next")" "verbose" || (pgrep -f "mpvsocket" && notify-send -i "$logdir/default.jpg" "$(cut -d">" -f1 "$logdir/current" | tr ':' '\n')" && play "$(menu "YT-music [play-next]: " < "$logdir/next")" "verbose")
+	[ -z "$1" ] && play "$(shuf -n1 "$logdir/next")" "verbose" || (pgrep -f "mpvsocket" && notify-send -r 5 -i "$logdir/default.jpg" "$(cut -d">" -f1 "$logdir/current" | tr ':' '\n')" && play "$(menu "YT-music [play-next]: " < "$logdir/next")" "verbose")
 }
 
 menu(){
