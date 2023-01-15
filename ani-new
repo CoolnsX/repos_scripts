@@ -2,8 +2,8 @@
 
 down () {
 	notify-send "$3 links fetched.." -r "$tmp"
-	choice=$(printf "download\nwatch\nnext mirror" | bemenu --fn 'Roboto 15' -p "??" -i -c -W 0.4 -B 3 -l 10)
-	[ "$choice" = "watch" ] && setsid -f mpv --referrer="$1" "$2" --force-media-title="$title" && notify-send -i "$icon_dir/apps/mpv.svg" "opening $title" -r "$tmp" && exit 0
+	choice=$(printf "stream\ndownload\nnext mirror" | bemenu --fn 'Roboto 15' -p "??" -i -c -W 0.4 -B 3 -l 10)
+	[ "$choice" = "stream" ] && setsid -f mpv --referrer="$1" "$2" --force-media-title="$title" && notify-send -i "$icon_dir/apps/mpv.svg" "opening $title" -r "$tmp" && exit 0
 	[ "$choice" = "next mirror" ] && return 0
 	notify-send -i "$icon_dir/panel/jdownloader-indicator.svg" "Downloading $title" -r "$tmp"
 	case $2 in
@@ -22,8 +22,9 @@ provider_run(){
 	provider_id=$(printf "%s" "$data" | sed -n "$2" | head -1 | cut -d':' -f2)
 	[ -z "$provider_id" ] && return 0
 	provider_video=$(curl -s "https://blog.allanime.pro/apivtwo/clock.json?id=$provider_id" | sed 's|},{|\n|g' | sed -nE 's|.*link":"([^"]*)".*"resolutionStr":"([^"]*)".*|\1|p' | head -1)
+	[ -z "$provider_video" ] && return 0
 	case $provider_video in
-		*v.vrv.co*|*crunchyroll*)	down "$base_url" "$(curl -s "$provider_video" -A "$agent" | sed 's|^#.*x||g; s|,.*|p|g; /^#/d; $!N; s|\n| >|; s|\/index-v1-a1\.m3u8||g' | grep -q "1080" | cut -d'>' -f2)" "$1"	;;
+		*v.vrv.co*|*crunchyroll*)	down "$base_url" "$(curl -s "$provider_video" -A "$agent" | sed -n '/x1080/{n;p;}')" "$1"	;;
 		*repackager.wixmp.com*)		down "$base_url" "$(printf %s "$provider_video" | cut -d',' -f1,2 | tr -d ',' | sed 's|repackager.wixmp.com/||g')/mp4/file.mp4" "$1" ;;
 		*)				down "$base_url" "$provider_video" "$1" ;;
 	esac
@@ -31,14 +32,15 @@ provider_run(){
 
 icon_dir="/usr/share/icons/Papirus/16x16"
 base_url="https://allanime.site"
-agent="uwu"
+agent="Mozilla/5.0"
 trap "exit 0" INT HUP
 tmp=$(notify-send "Parsing $base_url.. Please wait..." -t 1500 -p)
-[ -z "$*" ] && url=$(curl -s "$base_url/anime" -A uwu | sed -nE 's|.*href="(/watch/[^"]*)" class.*|\1|p' | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 20 -p "Select Anime: ") || url=$*
-title=$(printf "%s" "$url" | cut -d'/' -f4- | tr '[:punct:]' ' ')
+[ -z "$*" ] && url=$(curl -s "$base_url/allanimeapi?variables=%7B%22search%22%3A%7B%22sortBy%22%3A%22Recent%22%2C%22allowAdult%22%3Afalse%2C%22allowUnknown%22%3Afalse%7D%2C%22limit%22%3A40%2C%22page%22%3A1%2C%22translationType%22%3A%22sub%22%2C%22countryOrigin%22%3A%22JP%22%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%229c7a8bc1e095a34f2972699e8105f7aaf9082c6e1ccd56eab99c2f1a971152c6%22%7D%7D" -A "$agent" | sed 's|Show|\n|g' | sed -nE 's|.*_id":"([^"]*)","name":"([^"]*)".*sub":\{"episodeString":"([^"]*)".*|\1\t\2\tepisode \3 sub|p' | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 20 -p "Select Anime: " | tr '[:punct:]' ' ' | tr -s ' ' | tr ' \t' '-/') || url=$*
+title=$(printf "%s" "$url" | cut -d'/' -f2- | tr '[:punct:]' ' ')
+url=$(printf "%s" "$url" | cut -d'/' -f1,3)
 [ -z "$url" ] && notify-send -u "critical" "No anime selected" -r "$tmp" && exit 0
 notify-send "Loading Episode $title.." -r "$tmp"
-data=$(curl -A "$agent" -s "${base_url}$url" | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":".*?id=([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
+data=$(curl -A "$agent" -s "${base_url}/watch/$url" | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":".*?id=([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
 notify-send "Fetching Embed links" -r "$tmp"
 
 #pstatic links
@@ -62,7 +64,7 @@ resp="$(curl -A "$agent" -s "https://gogohd.pro/streaming.php?id=$id" | sed -nE 
 
 notify-send "Fetching mp4upload links" -r "$tmp"
 mp4up_link=$(printf "%s" "$resp" | grep "mp4upload")
-[ -z "$mp4up_link" ] || mp4up_video=$(curl -A "$agent" -s "$mp4up_link" -H "DNT: 1" --connect-timeout=10 | sed -nE 's_.*embed\|(.*)\|.*blank.*\|(.*)\|(.*)\|(.*)\|(.*)\|src.*_https://\1.mp4upload.com:\5/d/\4/\3.\2_p')
+[ -z "$mp4up_link" ] || mp4up_video=$(curl -A "$agent" -s "$mp4up_link" -H "DNT: 1" | sed -nE 's_.*embed\|(.*)\|.*blank.*\|(.*)\|(.*)\|(.*)\|(.*)\|src.*_https://\1.mp4upload.com:\5/d/\4/\3.\2_p')
 [ -z "$mp4up_video" ] || down "$mp4up_link" "$mp4up_video" "mp4upload"
 
 notify-send "Fetching xstreamcdn links" -r "$tmp"

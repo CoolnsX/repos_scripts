@@ -16,12 +16,12 @@ if [ "$*" = "add" ];then
     	   	 notify-send "Bookmarked" "$data"
     	fi
 elif [ "$*" = "rm" ];then
-    data="$(cat "$file" | sed '/^$/d' | nl -n'ln')"
+    data="$(sed '/^$/d' "$file" | nl -n'ln')"
     [ -z "$data" ] && notify-send "Bookmark is empty" && exit 0
     del=$(printf "%s" "$data" | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 30 -p "delete-bookmark :" | cut -f1)
     [ -z "$del" ] || (sed -i "${del}d" "$file" && notify-send "Bookmarked deleted")
 else
-	wtype -d 5 "$(cat "$file" | sed '/^$/d' | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 30 -p "Put-bookmark :" | tr '\`' '\n')"
+	wtype -d 5 "$(sed '/^$/d' "$file" | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 30 -p "Put-bookmark :" | tr '\`' '\n')"
 fi
 
 sed -i '/^$/d' "$file"

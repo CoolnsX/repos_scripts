@@ -164,7 +164,7 @@ menu(){
 	bemenu --fn 'Roboto 15' -i -c -W 0.5 -B 3 -p "$1" -l 26
 }
 
-logdir="${XDG_CACHE_HOME:-$HOME/.cache/yt-music}"
+logdir="/tmp/yt-music"
 base_url="https://music.youtube.com"
 [ -d "$logdir" ] || mkdir "$logdir"
 cookie="$logdir/cookies"
