@@ -2,9 +2,10 @@
 
 #script for bookmarking selected items and later using it..
 
-data="$(wl-paste -p | tr '\n' '\`')"
+data="$(wl-paste -p | tr '\n' '\`' | sed 's/$/ /g')"
 
 file="$HOME/.cache/bookmarks"
+oshi_file="$HOME/.cache/oshi-urls"
 
 if [ "$*" = "add" ];then
     	if [ -z "$data" ];then
@@ -21,7 +22,7 @@ elif [ "$*" = "rm" ];then
     del=$(printf "%s" "$data" | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 30 -p "delete-bookmark :" | cut -f1)
     [ -z "$del" ] || (sed -i "${del}d" "$file" && notify-send "Bookmarked deleted")
 else
-	wtype -d 5 "$(sed '/^$/d' "$file" | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 30 -p "Put-bookmark :" | tr '\`' '\n')"
+	wtype -d 10 "$(sed '/^$/d' "$file" "$oshi_file" | sed -E 's/.*DL: ([^|]*).*/\1/g' | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 30 -p "Put-bookmark :" | tr '\`' '\n')"
 fi
 
 sed -i '/^$/d' "$file"

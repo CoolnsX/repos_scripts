@@ -73,6 +73,7 @@ loop(){
 			sleep 2
 		done
 		pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^\.]*).*_\1_p')
+		pgrep -f "mpvsocket" >/dev/null || exit 0
 		[ -z "$pos" ] && pgrep -f "mpvsocket" > /dev/null && [ -n "$(cat "$logdir/next")" ] && play "$(shuf -n1 "$logdir/next")" "$1"
 	done
 }
