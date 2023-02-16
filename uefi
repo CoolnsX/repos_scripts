@@ -1,0 +1,36 @@
+#!/bin/sh
+
+#extracting info from drives
+data=$(mount -l | sed -nE 's|([^ ]*) on \/boot.*|\1|p')
+
+#extracting drive name
+drive=$(printf '%s' "$data" | sed -nE 's|(.*nvme.*)p[0-9]*$|\1|p;s|(.*[s|v]d[a-z])[0-9]*$|\1|p')
+
+#extracting efi partition
+efi_part_no=$(printf '%s' "$data" | sed -nE 's/.*([0-9])$/\1/p')
+
+#extracting root partition
+root_part=$(sed -nE 's|^([^#][^ ]*).*/ .*|\1|p' /etc/fstab | tr -d '\t')
+
+#extracting ur OS name from os-release
+os_name=$(sed -nE 's/^NAME="([^"]*)"/\1/p' /etc/os-release)
+
+#checking for swap(this is currently not called in final command as not most people use hibernate..)
+lsblk | grep -q 'SWAP' && swap="resume=$(blkid | sed -nE 's/.*(UUID[^ ]*).*swap.*/\1/p' | sed 's/"//g') " 
+
+#checking for ucode in ur /boot
+ls /boot/ | grep -q 'ucode' && ucode=" initrd=\\$(find /boot/ | sed -nE 's|.*/(.*code.*)|\1|p')"
+
+#fetching kernels list in /boot
+kernel=$(ls /boot/ | sed -nE 's|(vmlinuz-.*)|\1|p')
+
+#iterating kernel
+for i in $kernel;do
+        kernel_ver=$(printf '%s' "$i" | sed -nE 's/vmlinuz-(.*)/\1/p')
+        grep -q 'Arch Linux' /etc/os-release && initrd=$(ls /boot/ | sed -nE "s|(init.*$kernel_ver\.img)|\1|p") || initrd=$(ls /boot/ | sed -nE "s|(init.*$kernel_ver.*)|\1|p")
+        [ -z "$initrd" ] && continue
+        printf "\n\033[1;35mKernel : \033[1;32m%s\n" "$(printf "%s" "$i" | sed -nE 's/vmlinuz-(.*)/\1/p')"
+        command="efibootmgr --create --disk $drive --part $efi_part_no --label '${os_name}' --loader /$i --unicode 'root=$root_part rw initrd=\\${initrd}${ucode}'"
+
+        printf "\033[1;36m%s\n" "$command"
+done
