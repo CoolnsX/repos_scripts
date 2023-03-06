@@ -88,12 +88,12 @@ play(){
 
 	#get song's audio url
 	random_no=$(head /dev/urandom | tr -dc '0-2' | cut -c1)
-	droid_agent="com.google.android.youtube/17.49.34 (Linux; U; Android 1$random_no) gzip"
+	droid_agent="com.google.android.youtube/18.07.34 (Linux; U; Android 1$random_no) gzip"
 	json="{
 	  \"context\": {
 	    \"client\": {
 	      \"clientName\": \"ANDROID\",
-	      \"clientVersion\": \"17.49.34\",
+	      \"clientVersion\": \"18.07.34\",
 	      \"androidSdkVersion\": $((random_no + 29)),
 	      \"userAgent\": \"$droid_agent\",
 	      \"hl\": \"en\",
@@ -112,7 +112,7 @@ play(){
 	  \"racyCheckOk\": true
 	}"
 	
-	audio_url=$(curl -X POST -A "$droid_agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w&prettyPrint=false" -H "content-type:application/json" -H "x-youtube-client-name:21" -H "x-youtube-client-version:17.46.37" -d "$json" -b "$cookie" | sed -nE 's_.*itag":251,"url":"([^"]*)".*_\1_p')
+	audio_url=$(curl -X POST -A "$droid_agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w&prettyPrint=false" -H "content-type:application/json" -H "x-youtube-client-name:21" -H "x-youtube-client-version:18.07.34" -d "$json" -b "$cookie" | sed -nE 's_.*itag":251,"url":"([^"]*)".*_\1_p')
 	if [ -n "$2" ];then
 		printf "Name >> %s\n" "$title"
 		printf "videoID >> %s\n" "$id"

@@ -8,10 +8,19 @@ c_reset="\033[0m"
 
 down(){
     tput reset
-    notify-send "Torrent: Downloading"
-    aria2c -d Downloads --select-file=$2 --seed-time=0 $1 && notify-send "Torrent: Download complete" && rm -f $file || notify-send -u critical "Torrent: Error!!" 
+    info_$os "Torrent: Downloading"
+    aria2c -d Downloads --select-file=$2 --seed-time=0 $1 && info_$os "Torrent: Download complete" && rm -f $file || error_$os "Torrent: Error!!" 
 }
 
+if [ "$(uname -o)" = "Android" ]; then
+	os="droid"
+	script_dir="$HOME"
+else
+	os="linux"
+	script_dir="$HOME/repos_scripts"
+fi
+
+. $script_dir/.functions
 trap "rm -f $HOME/.cache/*.torrent;exit 0" INT HUP
 [ -z "$*" ] && magnet="$(wl-paste)" || magnet="$*"
 echo "$magnet"

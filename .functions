@@ -1,0 +1,49 @@
+#!/bin/sh
+
+menu_droid () {
+	fzf --prompt="$1"
+}
+
+menu_linux () {
+	bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 25 -p "$1"
+}
+
+search_droid () {
+	printf "$1" && read -r query
+}
+
+search_linux () {
+	query=$(: | menu_linux "$1 ")
+}
+
+torrent_linux () {
+	setsid -f $TERMINAL -e $HOME/repos_scripts/torrent "$1"
+}
+
+torrent_droid () {
+	$HOME/torrent "$1"
+}
+
+info_droid () {
+	printf "\n\r\033[1;36m%s" "$1"
+} 
+
+info_linux () {
+	notify-send "$1" -r '10' -i "$2"
+}
+
+error_droid () {
+	printf "\33[2K\r\033[1;31m%s" "$1"
+}
+
+error_linux () {
+	notify-send -u "critical" "$1" -r '10'
+}
+
+player_droid () {
+	am start --user 0 -a android.intent.action.VIEW -d "$1" -n is.xyz.mpv/.MPVActivity >/dev/null 2>&1
+}
+
+player_linux () {
+	setsid -f mpv "$1" --force-media-title="$2"
+}

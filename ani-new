@@ -1,24 +1,25 @@
 #!/bin/sh
 
 down () {
-	notify-send "$3 links fetched.." -r "$tmp"
+	info_$os "$3 links fetched.."
 	choice=$(printf "stream\ndownload\nnext mirror" | bemenu --fn 'Roboto 15' -p "??" -i -c -W 0.4 -B 3 -l 10)
-	[ "$choice" = "stream" ] && setsid -f mpv "$2" --force-media-title="$title" && notify-send -i "$icon_dir/apps/mpv.svg" "opening $title" -r "$tmp" && exit 0
+	[ -z "$choice" ] && exit 0
+	[ "$choice" = "stream" ] && player_$os "$2" "$title" && info_$os "opening $title" "$icon_dir/apps/mpv.svg" && exit 0
 	[ "$choice" = "next mirror" ] && return 0
-	notify-send -i "$icon_dir/panel/jdownloader-indicator.svg" "Downloading $title" -r "$tmp"
+	info_$os "Downloading $title" "$icon_dir/panel/jdownloader-indicator.svg"
 	case $2 in
-		*m3u*)	$TERMINAL -e hls -ro "Downloads/$title.mp4" "$2" || (notify-send -u "critical" "Downloading failed $title" -r "$tmp" && exit 0) ;;
-		*)	$TERMINAL -e aria2c -U "$agent" --check-certificate=false -d 'Downloads' --summary-interval=0 -x 16 -s 16 --referer="$1" "$2" -o "$title.mp4" --download-result=hide || (notify-send -u "critical" "Downloading failed $title" -r "$tmp" && exit 0) ;;
+		*m3u*)	$terminal hls -ro "$download_dir/$title.mp4" "$2" || (error_$os "Downloading failed $title" && exit 0) ;;
+		*)	$terminal aria2c -U "$agent" --check-certificate=false -d "$download_dir" --summary-interval=0 -x 16 -s 16 --referer="$1" "$2" -o "$title.mp4" --download-result=hide || (error_$os "Downloading failed $title" && exit 0) ;;
 	esac
-	notify-send "Episode Downloaded $title" -r "$tmp"
+	info_$os "Episode Downloaded $title"
 	exit 0
 }
 
 provider_run(){
-	notify-send "Fetching $1 links" -r "$tmp"
+	info_$os "Fetching $1 links" 
 	provider_id=$(printf "%s" "$data" | sed -n "$2" | head -1 | cut -d':' -f2)
 	[ -z "$provider_id" ] && return 0
-	provider_video=$(curl -s "https://blog.allanime.pro/apivtwo/clock.json?id=$provider_id" | sed 's|},{|\n|g' | sed -nE 's|.*link":"([^"]*)".*"resolutionStr":"([^"]*)".*|\1|p;s|.*hls","url":"([^"]*)".*"hardsub_lang":"en-US".*|\1|p' | head -1)
+	provider_video=$(curl -s "https://allanimenews.com/apivtwo/clock.json?id=$provider_id" | sed 's|},{|\n|g' | sed -nE 's|.*link":"([^"]*)".*"resolutionStr":"([^"]*)".*|\1|p;s|.*hls","url":"([^"]*)".*"hardsub_lang":"en-US".*|\1|p' | head -1)
 	[ -z "$provider_video" ] && return 0
 	case $provider_video in
 		*crunchyroll*)		down "$base_url" "$(curl -s "$provider_video" -A "$agent" | sed -n '/x1080/{n;p;}')" "$1"	;;
@@ -28,17 +29,33 @@ provider_run(){
 }
 
 icon_dir="/usr/share/icons/Papirus/16x16"
-base_url="https://allanime.site"
+base_url="https://api.allanime.to"
 agent="Mozilla/5.0"
+
+case $(uname -o) in
+	*ndroid*)
+		os="droid"
+		download_dir="/sdcard"
+		script_dir="$HOME"
+		;;
+	*)
+		os="linux" 
+		terminal="$TERMINAL -e"
+		script_dir="$HOME/repos_scripts"
+		;;
+esac
+
+. $script_dir/.functions
 trap "exit 0" INT HUP
-tmp=$(notify-send "Parsing $base_url.. Please wait..." -t 1500 -p)
-[ -z "$*" ] && url=$(curl -s "$base_url/allanimeapi?variables=%7B%22search%22%3A%7B%22sortBy%22%3A%22Recent%22%2C%22allowAdult%22%3Atrue%2C%22allowUnknown%22%3Atrue%7D%2C%22limit%22%3A40%2C%22page%22%3A1%2C%22translationType%22%3A%22sub%22%2C%22countryOrigin%22%3A%22JP%22%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%229c7a8bc1e095a34f2972699e8105f7aaf9082c6e1ccd56eab99c2f1a971152c6%22%7D%7D" -A "$agent" | sed 's|Show|\n|g' | sed -nE 's|.*_id":"([^"]*)","name":"([^"]*)".*sub":\{"episodeString":"([^"]*)".*|\1\t\2\tepisode \3|p' | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 20 -p "Select Anime: " | tr '[:punct:]' ' ' | tr -s ' ' | tr ' \t' '-/') || url=$(printf "%s" "$*" | sed -nE 's|.*/watch/(.*)-sub|\1|p')
-[ -z "$url" ] && notify-send -u "critical" "No anime selected" -r "$tmp" && exit 0
-title=$(printf "%s" "$url" | cut -d'/' -f2- | tr '[:punct:]' ' ')
-url=$(printf "%s" "$url" | cut -d'/' -f1,3)
-notify-send "Loading Episode $title.." -r "$tmp"
-data=$(curl -A "$agent" -s "${base_url}/watch/$url-sub" | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":".*?id=([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
-notify-send "Fetching Embed links" -r "$tmp"
+info_$os "Parsing $base_url.. Please wait..."
+[ -z "$*" ] && url=$(curl -s "$base_url/allanimeapi?variables=%7B%22search%22%3A%7B%22sortBy%22%3A%22Recent%22%2C%22allowAdult%22%3Atrue%2C%22allowUnknown%22%3Atrue%7D%2C%22limit%22%3A40%2C%22page%22%3A1%2C%22translationType%22%3A%22sub%22%2C%22countryOrigin%22%3A%22JP%22%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%22c4305f3918591071dfecd081da12243725364f6b7dd92072df09d915e390b1b7%22%7D%7D" "$base_url/allanimeapi?variables=%7B%22search%22%3A%7B%22sortBy%22%3A%22Recent%22%2C%22allowAdult%22%3Atrue%2C%22allowUnknown%22%3Atrue%7D%2C%22limit%22%3A40%2C%22page%22%3A2%2C%22translationType%22%3A%22sub%22%2C%22countryOrigin%22%3A%22JP%22%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%22c4305f3918591071dfecd081da12243725364f6b7dd92072df09d915e390b1b7%22%7D%7D" -A "$agent" | sed 's|Show|\n|g' | sed -nE 's|.*_id":"([^"]*)","name":"([^"]*)".*sub":\{"episodeString":"([^"]*)".*|\1\t\2 Episode \3|p' | bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 20 -p "Select Anime: " | tr '[:punct:]' ' ' | tr -s ' ') || url=$(printf "%s" "$*" | sed -nE 's|.*/watch/(.*)-sub|\1|p')
+[ -z "$url" ] && error_$os "No anime selected" && exit 0
+title=$(printf "%s" "$url" | cut -f2-)
+id=$(printf "%s" "$url" | cut -f1)
+ep_no=$(printf "%s" "$url" | sed 's/.*Episode //g')
+info_$os "Loading Episode $title.."
+data=$(curl -A "$agent" -s "$base_url/allanimeapi?variables=%7B%22showId%22%3A%22$id%22%2C%22translationType%22%3A%22sub%22%2C%22countryOrigin%22%3A%22ALL%22%2C%22episodeString%22%3A%22$ep_no%22%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%22919e327075ac9e249d003aa3f804a48bbdf22d7b1d107ffe659accd54283ce48%22%7D%7D" | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":".*?id=([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
+info_$os "Fetching Embed links"
 
 #pstatic links
 provider_run "pstatic" "/Default B :/p"
@@ -58,18 +75,18 @@ provider_run "usercloud" "/Uv-mp4 :/p"
 #gogoplay links
 provider_run "gogoplay" "/Luf-mp4 :/p"
 
-id=$(printf "%s" "$data" | sed -nE 's/Vid-mp4 :([^&]*).*/\1/p')
-[ -z "$id" ] && notify-send -u critical "no more mirror links..sorry" -r "$tmp" && exit 0
-resp="$(curl -A "$agent" -s "https://gogohd.pro/streaming.php?id=$id" | sed -nE 's/.*data-status="1".*data-video="(.*)">.*/\1/p')"
+id=$(printf "%s" "$data" | sed -nE 's/Vid-mp4 :(.*)/\1/p')
+[ -z "$id" ] && error_$os "no more mirror links..sorry" && exit 0
+resp="$(curl -A "$agent" -s "https://anihdplay.com/streaming.php?id=$id" | sed -nE 's/.*data-status="1".*data-video="(.*)">.*/\1/p')"
 
-notify-send "Fetching mp4upload links" -r "$tmp"
+info_$os "Fetching mp4upload links"
 mp4up_link=$(printf "%s" "$resp" | grep "mp4upload")
 [ -z "$mp4up_link" ] || mp4up_video=$(curl -A "$agent" -s "$mp4up_link" -H "DNT: 1" | sed -nE 's_.*embed\|(.*)\|.*blank.*\|(.*)\|(.*)\|(.*)\|(.*)\|src.*_https://\1.mp4upload.com:\5/d/\4/\3.\2_p')
 [ -z "$mp4up_video" ] || down "$mp4up_link" "$mp4up_video" "mp4upload"
 
-notify-send "Fetching xstreamcdn links" -r "$tmp"
+info_$os "Fetching xstreamcdn links"
 fb_id=$(printf "%s" "$resp" | sed -n "s_.*fembed.*/v/__p")
 [ -z "$fb_id" ] || fb_video=$(curl -A "$agent" -s -X POST "https://fembed-hd.com/api/source/$fb_id" -H "x-requested-with:XMLHttpRequest" | sed -e 's/\\//g' -e 's/.*data"://' | tr "}" "\n" | sed -nE 's/.*file":"(.*)","label.*/\1/p' | tail -1)
 [ -z "$fb_video" ] || down "https://fembed-hd.com/v/$fb_id" "$fb_video" "xstreamcdn"
 
-notify-send -u critical "no more mirror links..sorry" -r "$tmp" && exit 0
+error_$os "no more mirror links..sorry" && exit 0
