@@ -1,7 +1,7 @@
 #!/bin/sh
 
 menu_droid () {
-	fzf "$1" $2
+	fzf --prompt="$1" $2
 }
 
 menu_linux () {
