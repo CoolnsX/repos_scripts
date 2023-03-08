@@ -4,9 +4,9 @@ down () {
 	info_$os "$3 links fetched.."
 	choice=$(printf "stream\ndownload\nnext mirror" | menu_$os "??")
 	[ -z "$choice" ] && exit 0
-	[ "$choice" = "stream" ] && player_$os "$2" "$title" && info_$os "opening $title" "$icon_dir/apps/mpv.svg" && exit 0
+	[ "$choice" = "stream" ] && player_$os "$2" "$title" && info_$os "opening $title" "mpv" && exit 0
 	[ "$choice" = "next mirror" ] && return 0
-	info_$os "Downloading $title" "$icon_dir/panel/jdownloader-indicator.svg"
+	info_$os "Downloading $title" "downloader"
 	case $2 in
 		*m3u*)	$terminal hls -ro "$download_dir/$title.mp4" "$2" || (error_$os "Downloading failed $title" && exit 0) ;;
 		*)	$terminal aria2c -U "$agent" --check-certificate=false -d "$download_dir" --summary-interval=0 -x 16 -s 16 --referer="$1" "$2" -o "$title.mp4" --download-result=hide || (error_$os "Downloading failed $title" && exit 0) ;;
@@ -28,7 +28,15 @@ provider_run(){
 	esac
 }
 
-icon_dir="/usr/share/icons/Papirus/16x16"
+run () {
+	query="query(        \$search: SearchInput        \$limit: Int        \$page: Int        \$translationType: VaildTranslationTypeEnumType        \$countryOrigin: VaildCountryOriginEnumType    ) {    shows(        search: \$search        limit: \$limit        page: \$page        translationType: \$translationType        countryOrigin: \$countryOrigin    ) {        edges {            _id name lastEpisodeInfo __typename       }    }}"
+
+	for i in $(seq 2)
+	do
+		curl -s -G 'https://api.allanime.to/allanimeapi' -d "variables=%7B%22search%22%3A%7B%22sortBy%22%3A%22Recent%22%2C%22allowAdult%22%3Atrue%2C%22allowUnknown%22%3Atrue%7D%2C%22limit%22%3A40%2C%22page%22%3A${i}%2C%22translationType%22%3A%22sub%22%2C%22countryOrigin%22%3A%22JP%22%7D" --data-urlencode "query=$query"  -A "$agent"
+	done
+}
+
 base_url="https://api.allanime.to"
 agent="Mozilla/5.0"
 
@@ -40,21 +48,27 @@ case $(uname -o) in
 		;;
 	*)
 		os="linux" 
-		terminal="$TERMINAL -e"
+		terminal="foot -e"
 		script_dir="$HOME/repos_scripts"
 		;;
 esac
 
-. $script_dir/.functions
+# shellcheck source=./.functions
+. "$script_dir/.functions"
 trap "exit 0" INT HUP
 info_$os "Parsing $base_url.. Please wait..."
-[ -z "$*" ] && url=$(curl -s "$base_url/allanimeapi?variables=%7B%22search%22%3A%7B%22sortBy%22%3A%22Recent%22%2C%22allowAdult%22%3Atrue%2C%22allowUnknown%22%3Atrue%7D%2C%22limit%22%3A40%2C%22page%22%3A1%2C%22translationType%22%3A%22sub%22%2C%22countryOrigin%22%3A%22JP%22%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%22c4305f3918591071dfecd081da12243725364f6b7dd92072df09d915e390b1b7%22%7D%7D" "$base_url/allanimeapi?variables=%7B%22search%22%3A%7B%22sortBy%22%3A%22Recent%22%2C%22allowAdult%22%3Atrue%2C%22allowUnknown%22%3Atrue%7D%2C%22limit%22%3A40%2C%22page%22%3A2%2C%22translationType%22%3A%22sub%22%2C%22countryOrigin%22%3A%22JP%22%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%22c4305f3918591071dfecd081da12243725364f6b7dd92072df09d915e390b1b7%22%7D%7D" -A "$agent" | sed 's|Show|\n|g' | sed -nE 's|.*_id":"([^"]*)","name":"([^"]*)".*sub":\{"episodeString":"([^"]*)".*|\1\t\2 Episode \3|p' | menu_$os "Select Anime: " '--with-nth 2..' | tr '[:punct:]' ' ' | tr -s ' ') || url=$(printf "%s" "$*" | sed -nE 's|.*/watch/(.*)-sub|\1|p')
+
+
+[ -z "$*" ] && url=$(run | sed 's|Show|\n|g' | sed -nE 's|.*_id":"([^"]*)","name":"([^"]*)".*sub":\{"episodeString":"([^"]*)".*|\1\t\2 Episode \3|p' | menu_$os "Select Anime: " '--with-nth 2..' | tr '[:punct:]' ' ' | tr -s ' ') || url=$(printf "%s" "$*" | sed -nE 's|.*/watch/(.*)-sub|\1|p')
+
 [ -z "$url" ] && error_$os "No anime selected" && exit 0
 title=$(printf "%s" "$url" | cut -f2-)
 id=$(printf "%s" "$url" | cut -f1)
 ep_no=$(printf "%s" "$url" | sed 's/.*Episode //g')
+
 info_$os "Loading Episode $title.."
-data=$(curl -A "$agent" -s "$base_url/allanimeapi?variables=%7B%22showId%22%3A%22$id%22%2C%22translationType%22%3A%22sub%22%2C%22countryOrigin%22%3A%22ALL%22%2C%22episodeString%22%3A%22$ep_no%22%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%22919e327075ac9e249d003aa3f804a48bbdf22d7b1d107ffe659accd54283ce48%22%7D%7D" | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":".*?id=([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
+episode_embed_gql="query (\$showId: String!, \$translationType: VaildTranslationTypeEnumType!, \$episodeString: String!) {    episode(        showId: \$showId        translationType: \$translationType        episodeString: \$episodeString    ) {        episodeString sourceUrls    }}"
+data=$( curl -e https://allanime.co -s --cipher AES256-SHA256 -G 'https://api.allanime.co/allanimeapi' --data-urlencode "variables={\"showId\":\"$id\",\"translationType\":\"sub\",\"countryOrigin\":\"ALL\",\"episodeString\":\"$ep_no\"}" --data-urlencode "query=$episode_embed_gql" -A 'Mozilla/5.0 (Windows NT 6.1; Win64; rv:109.0) Gecko/20100101 Firefox/109.0' | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":".*?id=([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
 info_$os "Fetching Embed links"
 
 #pstatic links

@@ -5,7 +5,7 @@ menu_droid () {
 }
 
 menu_linux () {
-	bemenu --fn 'Roboto 15' -i -c -W 0.6 -B 3 -l 25 -p "$1"
+	bemenu --fn 'Cascadia Mono 15' -i -c -W 0.6 -B 3 -l 25 -p "$1"
 }
 
 search_droid () {

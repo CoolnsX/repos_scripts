@@ -141,7 +141,7 @@ play(){
 search_play(){
 	#run this if u r starting the script first time like this
 	#call this by "script-name" "search_play" "search_query"
-	[ -z "$1" ] && query=$(:| menu "Yt-music [Search]: ") || query="$1"
+	[ -z "$1" ] && query=$(:| menu "Yt-music [Search]:") || query="$1"
 	[ -z "$query" ] && notify-send "Err.. Search query empty" -u critical -r 5 && exit 1
 	curl -A "$agent" -s "$base_url/" -c "$cookie" | sed -nE 's|.*INNERTUBE_CONTEXT":(.*),"INNERTUBE_CONTEXT_CLIENT_NAME.*|\1|p' > "$logdir/context"
 
@@ -150,7 +150,7 @@ search_play(){
 	\"query\": \"$query\",
 	\"params\": \"EgWKAQIIAWoKEAMQBBAJEAoQBQ%3D%3D\"
 	}"
-	res=$(get_data "search" "$json_search" "search?q=$(printf "%s" "$1" | tr ' ' '+')" | sed 's/watchEndpoint"/\n/g' | sed -nE 's_.*videoId":"([^"]*)",.*label":"Play ([^"]*)".*_\2\t\1_p' | menu "Yt-music [Play]: ")
+	res=$(get_data "search" "$json_search" "search?q=$(printf "%s" "$1" | tr ' ' '+')" | sed 's/watchEndpoint"/\n/g' | sed -nE 's_.*videoId":"([^"]*)",.*label":"Play ([^"]*)".*_\2\t\1_p' | menu "Yt-music [Play]:")
 	[ -z "$res" ] || play "$res" "verbose"
 }
 
@@ -162,7 +162,7 @@ play_next(){
 }
 
 menu(){
-	bemenu --fn 'Roboto 15' -i -c -W 0.5 -B 3 -p "$1" -l 26
+	bemenu --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 3 -p "$1" -l 26
 }
 
 logdir="/tmp/yt-music"
