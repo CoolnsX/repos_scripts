@@ -54,7 +54,7 @@ help(){
 }
 
 get_data(){
-    curl -X POST -A "$agent" -s "$base_url/youtubei/v1/$1?key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30&prettyPrint=false" -H "content-type:application/json" -H "x-youtube-client-name:67" -H "x-youtube-client-version:1.20221128.01.00" -d "$2" -b "$cookie" -e "$base_url/$3"
+    curl -X POST -A "$agent" -s "$base_url/youtubei/v1/$1?key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30&prettyPrint=false" -H "content-type:application/json" -H "x-youtube-client-name:67" -H "x-youtube-client-version:1.20221128.01.00" -d "$2" -b "$cookie" -e "$base_url/$3" -c "$cookie"
 }
 
 loop(){
@@ -88,12 +88,12 @@ play(){
 
 	#get song's audio url
 	random_no=$(head /dev/urandom | tr -dc '0-2' | cut -c1)
-	droid_agent="com.google.android.youtube/18.07.34 (Linux; U; Android 1$random_no) gzip"
+	droid_agent="com.google.android.youtube/18.10.36 (Linux; U; Android 1$random_no) gzip"
 	json="{
 	  \"context\": {
 	    \"client\": {
 	      \"clientName\": \"ANDROID\",
-	      \"clientVersion\": \"18.07.34\",
+	      \"clientVersion\": \"18.10.36\",
 	      \"androidSdkVersion\": $((random_no + 29)),
 	      \"userAgent\": \"$droid_agent\",
 	      \"hl\": \"en\",
@@ -112,7 +112,7 @@ play(){
 	  \"racyCheckOk\": true
 	}"
 	
-	audio_url=$(curl -X POST -A "$droid_agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w&prettyPrint=false" -H "content-type:application/json" -H "x-youtube-client-name:21" -H "x-youtube-client-version:18.07.34" -d "$json" -b "$cookie" | sed -nE 's_.*itag":251,"url":"([^"]*)".*_\1_p')
+	audio_url=$(curl -X POST -A "$droid_agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w&prettyPrint=false" -H "content-type:application/json" -d "$json" -b "$cookie" | sed -nE 's_.*itag":251,"url":"([^"]*)".*_\1_p')
 	if [ -n "$2" ];then
 		printf "Name >> %s\n" "$title"
 		printf "videoID >> %s\n" "$id"
@@ -170,7 +170,7 @@ base_url="https://music.youtube.com"
 [ -d "$logdir" ] || mkdir "$logdir"
 cookie="$logdir/cookies"
 next_data="$logdir/next"
-agent="Mozilla/5.0 (X11; Linux x86_64; rv:108.0) Gecko/20100101 Firefox/108.0"
+agent="Mozilla/5.0 (X11; Linux x86_64; rv:108.0) Gecko/20100101 Firefox/110.0"
 
 #call this script by script-name "function_name" "query"
 [ -z "$1" ] && help "$@"

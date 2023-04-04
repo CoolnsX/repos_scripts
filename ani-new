@@ -2,9 +2,10 @@
 
 down () {
 	info_$os "$3 links fetched.."
-	choice=$(printf "stream\ndownload\nnext mirror" | menu_$os "??")
+	choice=$(printf "stream\ndownload\ncast\nnext mirror" | menu_$os "??")
 	[ -z "$choice" ] && exit 0
 	[ "$choice" = "stream" ] && player_$os "$2" "$title" && info_$os "opening $title" "mpv" && exit 0
+	[ "$choice" = "cast" ] && info_$os "casting $title" "podcast" && catt cast "$2" && exit 0
 	[ "$choice" = "next mirror" ] && return 0
 	info_$os "Downloading $title" "downloader"
 	case $2 in
