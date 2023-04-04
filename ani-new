@@ -29,9 +29,6 @@ provider_run(){
 	esac
 }
 
-run () {
-}
-
 base_url="https://api.allanime.to"
 agent="Mozilla/5.0"
 
