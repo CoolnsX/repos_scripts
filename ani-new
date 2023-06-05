@@ -9,7 +9,7 @@ down () {
 	[ "$choice" = "next mirror" ] && return 0
 	info_$os "Downloading $title" "downloader"
 	case $2 in
-		*m3u*)	$terminal hls -ro "$download_dir/$title.mp4" "$2" || (error_$os "Downloading failed $title" && exit 0) ;;
+		*m3u*)	$terminal hls -n 300 -ro "$download_dir/$title" "$2" || (error_$os "Downloading failed $title" && exit 0) ;;
 		*)	$terminal aria2c -U "$agent" --check-certificate=false -d "$download_dir" --summary-interval=0 -x 16 -s 16 --referer="$1" "$2" -o "$title.mp4" --download-result=hide || (error_$os "Downloading failed $title" && exit 0) ;;
 	esac
 	info_$os "Episode Downloaded $title"
@@ -18,9 +18,10 @@ down () {
 
 provider_run(){
 	info_$os "Fetching $1 links" 
-	provider_id=$(printf "%s" "$data" | sed -n "$2" | head -1 | cut -d':' -f2)
+	hexadecimal_provider_id="$(printf "%s" "$data" | sed -n "$2" | head -1 | cut -d':' -f2 | sed 's/\(..\)/\\x\1/g')"
+	provider_id=$(printf "%b" "$hexadecimal_provider_id" | sed "s/\/clock/\/clock\.json/")
 	[ -z "$provider_id" ] && return 0
-	provider_video=$(curl -s "https://allanimenews.com/apivtwo/clock.json?id=$provider_id" | sed 's|},{|\n|g' | sed -nE 's|.*link":"([^"]*)".*"resolutionStr":"([^"]*)".*|\1|p;s|.*hls","url":"([^"]*)".*"hardsub_lang":"en-US".*|\1|p' | head -1)
+	provider_video=$(curl -s "https://allanimenews.com$provider_id" | sed 's|},{|\n|g' | sed -nE 's|.*link":"([^"]*)".*"resolutionStr":"([^"]*)".*|\1|p;s|.*hls","url":"([^"]*)".*"hardsub_lang":"en-US".*|\1|p' | head -1)
 	[ -z "$provider_video" ] && return 0
 	case $provider_video in
 		*crunchyroll*)		down "$base_url" "$(curl -s "$provider_video" -A "$agent" | sed -n '/x1080/{n;p;}')" "$1"	;;
@@ -62,23 +63,23 @@ ep_no=$(printf "%s" "$url" | sed 's/.*Episode //g')
 
 info_$os "Loading Episode $title.."
 episode_embed_gql="query (\$showId: String!, \$translationType: VaildTranslationTypeEnumType!, \$episodeString: String!) {    episode(        showId: \$showId        translationType: \$translationType        episodeString: \$episodeString    ) {        episodeString sourceUrls    }}"
-data=$( curl -e https://allanime.co -s --cipher AES256-SHA256 -G 'https://api.allanime.co/allanimeapi' --data-urlencode "variables={\"showId\":\"$id\",\"translationType\":\"sub\",\"countryOrigin\":\"ALL\",\"episodeString\":\"$ep_no\"}" --data-urlencode "query=$episode_embed_gql" -A 'Mozilla/5.0 (Windows NT 6.1; Win64; rv:109.0) Gecko/20100101 Firefox/109.0' | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":".*?id=([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
+data=$( curl -e https://allanime.co -s --cipher AES256-SHA256 -G 'https://api.allanime.co/allanimeapi' --data-urlencode "variables={\"showId\":\"$id\",\"translationType\":\"sub\",\"countryOrigin\":\"ALL\",\"episodeString\":\"$ep_no\"}" --data-urlencode "query=$episode_embed_gql" -A 'Mozilla/5.0 (Windows NT 6.1; Win64; rv:109.0) Gecko/20100101 Firefox/109.0' | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":"#([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
 info_$os "Fetching Embed links"
-
-#pstatic links
-provider_run "pstatic" "/Default B :/p"
 
 #wixmp links
 provider_run "wixmp" "/Default :/p"
 
-#wixmp links
-provider_run "vrv" "/Ac :/p"
+#dropbox links
+provider_run "dropbox" "/Sak :/p"
+
+#wetransfer links
+provider_run "wetransfer" "/Kir :/p"
 
 #sharepoint links
 provider_run "sharepoint" "/S-mp4 :/p"
 
-#usercloud links
-provider_run "usercloud" "/Uv-mp4 :/p"
+#vrv links
+provider_run "vrv" "/Ac :/p"
 
 #gogoplay links
 provider_run "gogoplay" "/Luf-mp4 :/p"
