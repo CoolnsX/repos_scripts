@@ -16,23 +16,9 @@ down () {
 	exit 0
 }
 
-hex_to_bin() {
-  hex="$1"
-  len=$(printf "%s" "$hex" | wc -c)
-  i=1
-
-  while [ "$i" -lt "$len" ]; do
-    char=$(printf "%s" "$hex" | cut -c "$i-$((i+1))")
-    dec=$(printf "%d" "0x$char")
-    oct=$(printf "%03o" "$dec")
-    eval "printf \"\\$oct\""
-    i=$((i+2))
-  done
-}
-
 provider_run(){
 	info_$os "Fetching $1 links" 
-	hexadecimal_provider_id="$(hex_to_bin "$(printf "%s" "$data" | sed -n "$2" | head -1 | cut -d':' -f2 | sed 's/\(..\)/\\x\1/g')")"
+	hexadecimal_provider_id="$(printf "%s" "$data" | sed -n "$2" | head -1 | cut -d':' -f2 | xxd -r -p)"
 	provider_id=$(printf "%s" "$hexadecimal_provider_id" | sed "s/\/clock/\/clock\.json/")
 	[ -z "$provider_id" ] && return 0
 	provider_video=$(curl -s "https://allanimenews.com$provider_id" | sed 's|},{|\n|g' | sed -nE 's|.*link":"([^"]*)".*"resolutionStr":"([^"]*)".*|\1|p;s|.*hls","url":"([^"]*)".*"hardsub_lang":"en-US".*|\1|p' | head -1)
