@@ -2,24 +2,25 @@
 #this script uses the piratesbay api to search for torrents
 
 cal_size() {
-    printf "%.03f\n" "$(($1/1000))e-6"
+        printf "%.03f\n" "$(($1 / 1000))e-6"
 }
 
 display() {
-    for i in $(seq $(printf "%s\nlol" "$2" | wc -l));do
-	printf "[%s GB;S:%s\n" "$(cal_size "$(printf "%s" "$1" | sed -n "${i}p")")" "$(printf "%s" "$2" | sed -n "${i}p")" & done
-    wait
+        for i in $(seq $(printf "%s\nlol" "$2" | wc -l)); do
+                printf "[%s GB;S:%s\n" "$(cal_size "$(printf "%s" "$1" | sed -n "${i}p")")" "$(printf "%s" "$2" | sed -n "${i}p")" &
+        done
+        wait
 }
 
 case $(uname -o) in
-	*ndroid*)
-		os="droid"
-		script_dir="$HOME"
-		;;
-	*)
-		os="linux"
-		script_dir="$HOME/repos_scripts"
-		;;
+        *ndroid*)
+                os="droid"
+                script_dir="$HOME"
+                ;;
+        *)
+                os="linux"
+                script_dir="$HOME/repos_scripts"
+                ;;
 esac
 
 . $script_dir/.functions

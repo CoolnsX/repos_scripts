@@ -1,64 +1,59 @@
 #!/bin/sh
 
-down () {
-	info_$os "$3 links fetched.."
-	choice=$(printf "stream\ndownload\ncast\nnext mirror" | menu_$os "??")
-	[ -z "$choice" ] && exit 0
-	[ "$choice" = "stream" ] && player_$os "$2" "$title" && info_$os "opening $title" "mpv" && exit 0
-	[ "$choice" = "cast" ] && info_$os "casting $title" "podcast" && catt cast "$2" && exit 0
-	[ "$choice" = "next mirror" ] && return 0
-	info_$os "Downloading $title" "downloader"
-	case $2 in
-		*m3u*)	$terminal hls -n 300 -ro "$download_dir/$title" "$2" || (error_$os "Downloading failed $title" && exit 0) ;;
-		*)	$terminal aria2c -U "$agent" --check-certificate=false -d "$download_dir" --summary-interval=0 -x 16 -s 16 --referer="$1" "$2" -o "$title.mp4" --download-result=hide || (error_$os "Downloading failed $title" && exit 0) ;;
-	esac
-	info_$os "Episode Downloaded $title"
-	exit 0
+down() {
+        info_$os "$3 links fetched.."
+        choice=$(printf "stream\ndownload\ncast\nnext mirror" | menu_$os "??")
+        [ -z "$choice" ] && exit 0
+        [ "$choice" = "stream" ] && player_$os "$2" "$title" && info_$os "opening $title" "mpv" && exit 0
+        [ "$choice" = "cast" ] && info_$os "casting $title" "podcast" && catt cast "$2" && exit 0
+        [ "$choice" = "next mirror" ] && return 0
+        info_$os "Downloading $title" "downloader"
+        case $2 in
+                *m3u*) $terminal hls -n 300 -ro "$download_dir/$title" "$2" || (error_$os "Downloading failed $title" && exit 0) ;;
+                *) $terminal aria2c -U "$agent" --check-certificate=false -d "$download_dir" --summary-interval=0 -x 16 -s 16 --referer="$1" "$2" -o "$title.mp4" --download-result=hide || (error_$os "Downloading failed $title" && exit 0) ;;
+        esac
+        info_$os "Episode Downloaded $title"
+        exit 0
 }
 
 decrypt_allanime() {
-	for result in $(printf '%s' "$1" | xxd -r -p | od -An -v -t u1)
-	do
-		for char in $(printf "%s" "1234567890123456789" | grep -o .)
-		do
-			decimal_char="$(printf "%02d" "'$char'")"
-			: $((result ^= decimal_char))
-		done
-
-		#shellcheck disable=SC2059
-		printf "\\$(printf "%03o" "$result")"
-	done
+        for hex in $(printf '%s' "$1" | sed 's/../&\n/g'); do
+                dec=$(printf '%d' "0x$hex")
+                xor=$((dec ^ 48))
+                oct=$(printf "%03o" "$xor")
+                #shellcheck disable=SC2059
+                printf "\\$oct"
+        done
 }
 
-provider_run(){
-	info_$os "Fetching $1 links" 
-	provider_id="$(decrypt_allanime "$(printf "%s" "$data" | sed -n "$2" | head -1 | cut -d':' -f2)" | sed "s/\/clock/\/clock\.json/")"
-	[ -z "$provider_id" ] && return 0
-	provider_video=$(curl -s "https://embed.ssbcontent.site$provider_id" | sed 's|},{|\n|g' | sed -nE 's|.*link":"([^"]*)".*"resolutionStr":"([^"]*)".*|\1|p;s|.*hls","url":"([^"]*)".*"hardsub_lang":"en-US".*|\1|p' | head -1)
-	[ -z "$provider_video" ] && return 0
-	[ -n "$3" ] && printf "%s : %s\n" "$1" "$provider_video" && return 0
-	case $provider_video in
-		*crunchyroll*)		down "$base_url" "$(curl -s "$provider_video" -A "$agent" | sed -n '/x1080/{n;p;}')" "$1"	;;
-		*repackager.wixmp.com*)	down "$base_url" "$(printf %s "$provider_video" | cut -d',' -f1,2 | tr -d ',' | sed 's|repackager.wixmp.com/||g')/mp4/file.mp4" "$1" ;;
-		*)			down "$base_url" "$provider_video" "$1" ;;
-	esac
+provider_run() {
+        info_$os "Fetching $1 links"
+        provider_id="$(decrypt_allanime "$(printf "%s" "$data" | sed -n "$2" | head -1 | cut -d':' -f2)" | sed "s/\/clock/\/clock\.json/")"
+        [ -z "$provider_id" ] && return 0
+        provider_video=$(curl -s "https://embed.ssbcontent.site$provider_id" | sed 's|},{|\n|g' | sed -nE 's|.*link":"([^"]*)".*"resolutionStr":"([^"]*)".*|\1|p;s|.*hls","url":"([^"]*)".*"hardsub_lang":"en-US".*|\1|p' | head -1)
+        [ -z "$provider_video" ] && return 0
+        [ -n "$3" ] && printf "%s : %s\n" "$1" "$provider_video" && return 0
+        case $provider_video in
+                *repackager.wixmp.com*) down "$base_url" "$(printf %s "$provider_video" | cut -d',' -f1,2 | tr -d ',' | sed 's|repackager.wixmp.com/||g')/mp4/file.mp4" "$1" ;;
+                *) down "$base_url" "$provider_video" "$1" ;;
+        esac
 }
 
 base_url="https://api.allanime.day"
 agent="Mozilla/5.0"
 
 case $(uname -o) in
-	*ndroid*)
-		os="droid"
-		download_dir="/sdcard"
-		script_dir="$HOME"
-		;;
-	*)
-		os="linux" 
-		download_dir="$HOME/Downloads"
-		terminal="foot -e"
-		script_dir="$HOME/repos_scripts"
-		;;
+        *ndroid*)
+                os="droid"
+                download_dir="/sdcard"
+                script_dir="$HOME"
+                ;;
+        *)
+                os="linux"
+                download_dir="$HOME/Downloads"
+                terminal="foot -e"
+                script_dir="$HOME/repos_scripts"
+                ;;
 esac
 
 # shellcheck source=./.functions
@@ -66,9 +61,8 @@ esac
 trap "exit 0" INT HUP
 info_$os "Parsing $base_url.. Please wait..."
 
-
 query="query(        \$search: SearchInput        \$limit: Int        \$page: Int        \$translationType: VaildTranslationTypeEnumType        \$countryOrigin: VaildCountryOriginEnumType    ) {    shows(        search: \$search        limit: \$limit        page: \$page        translationType: \$translationType        countryOrigin: \$countryOrigin    ) {        edges {            _id name lastEpisodeInfo __typename       }    }}"
-[ -z "$1" ] && url=$(curl -e 'https://allanime.to' -s --cipher 'AES256-SHA256' -G "${base_url}/api" -d "variables=%7B%22search%22%3A%7B%22sortBy%22%3A%22Recent%22%2C%22allowAdult%22%3Atrue%2C%22allowUnknown%22%3Atrue%7D%2C%22limit%22%3A40%2C%22page%22%3A1%2C%22translationType%22%3A%22sub%22%2C%22countryOrigin%22%3A%22JP%22%7D" --data-urlencode "query=$query"  -A "$agent" | sed 's|Show|\n|g' | sed -nE 's|.*_id":"([^"]*)","name":"([^"]*)".*sub":\{"episodeString":"([^"]*)".*|\1\t\2 Episode \3|p' | menu_$os "Select Anime: " '--with-nth 2..' | tr ':' ' ' | tr -s ' ') || url=$(printf "%s" "$1" | sed -nE 's|.*/watch/(.*)-sub|\1|p')
+[ -z "$1" ] && url=$(curl -e 'https://allanime.to' -s --cipher 'AES256-SHA256' -G "${base_url}/api" -d "variables=%7B%22search%22%3A%7B%22sortBy%22%3A%22Recent%22%2C%22allowAdult%22%3Atrue%2C%22allowUnknown%22%3Atrue%7D%2C%22limit%22%3A40%2C%22page%22%3A1%2C%22translationType%22%3A%22sub%22%2C%22countryOrigin%22%3A%22JP%22%7D" --data-urlencode "query=$query" -A "$agent" | sed 's|Show|\n|g' | sed -nE 's|.*_id":"([^"]*)","name":"([^"]*)".*sub":\{"episodeString":"([^"]*)".*|\1\t\2 Episode \3|p' | menu_$os "Select Anime: " '--with-nth 2..' | tr ':' ' ' | tr -s ' ') || url=$(printf "%s" "$1" | sed -nE 's|.*/watch/(.*)-sub|\1|p')
 
 [ -z "$url" ] && error_$os "No anime selected" && exit 0
 title=$(printf "%s" "$url" | cut -f2-)
@@ -77,7 +71,7 @@ ep_no=$(printf "%s" "$url" | sed 's/.*Episode //g')
 
 info_$os "Loading Episode $title.."
 episode_embed_gql="query (\$showId: String!, \$translationType: VaildTranslationTypeEnumType!, \$episodeString: String!) {    episode(        showId: \$showId        translationType: \$translationType        episodeString: \$episodeString    ) {        episodeString sourceUrls    }}"
-data=$( curl -e https://allanime.to -sL --cipher AES256-SHA256 -G "{$base_url}/api" --data-urlencode "variables={\"showId\":\"$id\",\"translationType\":\"sub\",\"countryOrigin\":\"ALL\",\"episodeString\":\"$ep_no\"}" --data-urlencode "query=$episode_embed_gql" -A 'Mozilla/5.0 (Windows NT 6.1; Win64; rv:109.0) Gecko/20100101 Firefox/109.0' | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":"#?([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
+data=$(curl -e https://allanime.to -sL --cipher AES256-SHA256 -G "{$base_url}/api" --data-urlencode "variables={\"showId\":\"$id\",\"translationType\":\"sub\",\"countryOrigin\":\"ALL\",\"episodeString\":\"$ep_no\"}" --data-urlencode "query=$episode_embed_gql" -A 'Mozilla/5.0 (Windows NT 6.1; Win64; rv:109.0) Gecko/20100101 Firefox/109.0' | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":"##([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
 info_$os "Fetching Embed links"
 
 #dropbox links
