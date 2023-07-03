@@ -7,17 +7,17 @@ c_cyan="\033[1;36m"
 c_reset="\033[0m"
 
 down() {
-        tput reset
-        info_$os "Torrent: Downloading"
-        aria2c -d Downloads --select-file=$2 --seed-time=0 $1 && info_$os "Torrent: Download complete" && rm -f $file || error_$os "Torrent: Error!!"
+	tput reset
+	info_$os "Torrent: Downloading"
+	aria2c -d Downloads --select-file=$2 --seed-time=0 $1 && info_$os "Torrent: Download complete" && rm -f $file || error_$os "Torrent: Error!!"
 }
 
 if [ "$(uname -o)" = "Android" ]; then
-        os="droid"
-        script_dir="$HOME"
+	os="droid"
+	script_dir="$HOME"
 else
-        os="linux"
-        script_dir="$HOME/repos_scripts"
+	os="linux"
+	script_dir="$HOME/repos_scripts"
 fi
 
 . $script_dir/.functions
@@ -28,19 +28,19 @@ printf "${c_yellow}Download>>\n${c_green}[f]ull torrent\n${c_cyan}[p]artial torr
 printf "${c_reset}\n\tenter choice:"
 read -r ch
 case $ch in
-        f)
-                down "$magnet"
-                ;;
-        p)
-                aria2c --dir=$HOME/.cache --bt-metadata-only=true --bt-save-metadata=true "$magnet"
-                tput reset
-                aria2c --show-files=true $HOME/.cache/*.torrent
-                printf "Enter file idx(default=all):"
-                read -r ind
-                down "$HOME/.cache/*.torrent" "$ind"
-                rm -f $HOME/.cache/*.torrent
-                ;;
-        q)
-                exit 0
-                ;;
+	f)
+		down "$magnet"
+		;;
+	p)
+		aria2c --dir=$HOME/.cache --bt-metadata-only=true --bt-save-metadata=true "$magnet"
+		tput reset
+		aria2c --show-files=true $HOME/.cache/*.torrent
+		printf "Enter file idx(default=all):"
+		read -r ind
+		down "$HOME/.cache/*.torrent" "$ind"
+		rm -f $HOME/.cache/*.torrent
+		;;
+	q)
+		exit 0
+		;;
 esac

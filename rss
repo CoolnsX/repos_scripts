@@ -1,11 +1,11 @@
 #!/bin/sh
 
 if [ "$(uname -o)" = "Android" ]; then
-        os="droid"
-        script_dir="$HOME"
+	os="droid"
+	script_dir="$HOME"
 else
-        os="linux"
-        script_dir="$HOME/repos_scripts"
+	os="linux"
+	script_dir="$HOME/repos_scripts"
 fi
 
 . $script_dir/.functions
