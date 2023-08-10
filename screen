@@ -11,7 +11,7 @@ menu() {
 	bemenu --fn 'IBM Plex Sans 15' -i -c -W "0.${2:-5}" -B 3 -p "$1" -l 26
 }
 
-record (){
+record() {
 	rm -f "$tmp_file" "$process_file"
 	source=$(printf "screen only\nspeaker\nmic" | menu "Audio Source:" "3")
 	monitor=$(hyprctl monitors | sed -nE 's|Monitor ([^ ]*).*|\1|p')
@@ -28,27 +28,26 @@ compress() {
 	duration=$(ffprobe -hide_banner -i "$tmp_file" 2>&1 | sed -nE 's|.*Duration: ([^,]*).*|\1|p')
 	i=19
 
-	while :;do
-		ffmpeg -loglevel error -hwaccel vaapi -hwaccel_device /dev/dri/renderD128 -i "$tmp_file" -vf 'format=nv12,hwupload' -c:v h264_vaapi -qp "$i" "$process_file" -y -progress - | while read -r line;
-		do 
+	while :; do
+		ffmpeg -loglevel error -hwaccel vaapi -hwaccel_device /dev/dri/renderD128 -i "$tmp_file" -vf 'format=nv12,hwupload' -c:v h264_vaapi -qp "$i" "$process_file" -y -progress - | while read -r line; do
 			complete=$(printf "%s\n" "$line" | sed -nE 's|out_time=(.*)|\1|p')
 			[ -n "$complete" ] && info "ffmpeg" "700" "Compressing File under 25 MB Using Quality Preset : $i.." "$complete out of $duration ($(du -m "$process_file" | cut -f1) MB)"
 			[ "$(du -m "$process_file" | cut -f1)" -gt 25 ] && killall -s KILL ffmpeg && break
 		done
 		[ "$(du -m "$process_file" | cut -f1)" -lt 25 ] && break
-		: $((i+=1))
+		: $((i += 1))
 	done
 	info "ffmpeg" "1000" "File Successfully compressed with Quality Preset : $i"
 	[ -f "$process_file" ] && tmp_file=$process_file
 }
 
-stop (){
+stop() {
 	pgrep -af wf-recorder >/dev/null && killall -s SIGINT wf-recorder 2>/dev/null || return 0
 	info "" "" "Recording Stopped"
 	case $(printf "save locally\nupload to oshi\nupload to discord" | menu "Post-Record:" '3') in
 		*oshi)
 			info "icloud" "" "Uploading to Oshi"
-			out=$(curl -sk https://oshi.at -F shorturl=0 -F "f=@$tmp_file") 
+			out=$(curl -sk https://oshi.at -F shorturl=0 -F "f=@$tmp_file")
 			[ -z "$out" ] && info "" "2000" "Unable to upload to oshi,moved the file from temp to your home folder as <unix_timestamp>.mp4" && mv "$tmp_file" "$HOME/$(date +%s).mp4" && return 1
 			printf "%s" "$out" | sed -nE 's|DL: (.*)|\1|p' | wl-copy && info "com.github.davidmhewitt.clipped" "2000" "Uploaded and Copied link to clipboard"
 			;;
