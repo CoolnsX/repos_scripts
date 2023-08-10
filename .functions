@@ -5,7 +5,8 @@ menu_droid() {
 }
 
 menu_linux() {
-	bemenu --fn 'Cascadia Mono 15' -i -c -W 0.6 -B 3 -l 25 -p "$1"
+	[ -z "$3" ] && width="0.6" || width="$3"
+	bemenu --fn 'Cascadia Mono 15' -i -c -W "$width" -B 3 -l 25 -p "$1"
 }
 
 search_droid() {
@@ -29,7 +30,7 @@ info_droid() {
 }
 
 info_linux() {
-	notify-send "$1" -r '10' -i "$2"
+	notify-send "$1" -r '10' -i "$2" $3
 }
 
 error_droid() {

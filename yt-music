@@ -55,7 +55,7 @@ help() {
 }
 
 get_data() {
-	curl -X POST -A "$agent" -s "$base_url/youtubei/v1/$1?key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30&prettyPrint=false" -H "content-type:application/json" -H "x-youtube-client-name:67" -H "x-youtube-client-version:1.20221128.01.00" -d "$2" -b "$cookie" -e "$base_url/$3" -c "$cookie"
+	curl -X POST -A "$agent" -s "$base_url/youtubei/v1/$1?key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30&prettyPrint=false" -H "content-type:application/json" -d "$2" -b "$cookie" -e "$base_url/$3" -c "$cookie"
 }
 
 loop() {
@@ -88,13 +88,14 @@ play() {
 	[ -z "$id" ] && printf "[ youtube ] Invalid link\n" && exit 1
 
 	#get song's audio url
-	random_no=$(head /dev/urandom | tr -dc '0-2' | cut -c1)
-	droid_agent="com.google.android.youtube/18.10.36 (Linux; U; Android 1$random_no) gzip"
+	random_no=$(head /dev/urandom | tr -dc '1-2' | cut -c1)
+	andy_yt_ver="6.13.52"
+	droid_agent="com.google.android.apps.youtube.music/$andy_yt_ver (Linux; U; Android 1$random_no) gzip"
 	json="{
 	  \"context\": {
 	    \"client\": {
-	      \"clientName\": \"ANDROID\",
-	      \"clientVersion\": \"18.10.36\",
+	      \"clientName\": \"ANDROID_MUSIC\",
+	      \"clientVersion\": \"$andy_yt_ver\",
 	      \"androidSdkVersion\": $((random_no + 29)),
 	      \"userAgent\": \"$droid_agent\",
 	      \"hl\": \"en\",
@@ -103,7 +104,6 @@ play() {
 	    }
 	  },
 	  \"videoId\": \"$id\",
-	  \"params\": \"8AEB\",
 	  \"playbackContext\": {
 	    \"contentPlaybackContext\": {
 	      \"html5Preference\": \"HTML5_PREF_WANTS\"
@@ -113,7 +113,8 @@ play() {
 	  \"racyCheckOk\": true
 	}"
 
-	audio_url=$(curl -X POST -A "$droid_agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w&prettyPrint=false" -H "content-type:application/json" -d "$json" -b "$cookie" | sed -nE 's_.*itag":251,"url":"([^"]*)".*_\1_p')
+	audio_url=$(curl -X POST -A "$droid_agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAOghZGza2MQSZkY_zfZ370N-PUdXEo8AI&prettyPrint=false" -H "content-type:application/json" -d "$json" -H "x-youtube-client-version:$andy_yt_ver" -H "x-youtube-client-name:21" | sed -nE 's_.*itag":251,"url":"([^"]*)".*_\1_p')
+	[ -z "$audio_url" ] && return 0
 	if [ -n "$2" ]; then
 		printf "Name >> %s\n" "$title"
 		printf "videoID >> %s\n" "$id"
@@ -136,7 +137,7 @@ play() {
 	\"context\": $(cat "$logdir/context")
 	}"
 	get_data "next" "$json_next" | sed 's/playlistPanelVideoRenderer/\n/g' | sed -nE 's_.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*_\1 - \2\t\3_p' | sed "/$id/d;/$prev_id/d" >"$next_data" &
-	pgrep -f "yt-music loop" || setsid -f $HOME/repos_scripts/yt-music loop
+	pgrep -f "yt-music loop" >/dev/null || setsid -f "$HOME"/repos_scripts/yt-music loop
 }
 
 search_play() {
@@ -144,8 +145,8 @@ search_play() {
 	#call this by "script-name" "search_play" "search_query"
 	[ -z "$1" ] && query=$(: | menu "Yt-music [Search]:") || query="$1"
 	[ -z "$query" ] && notify-send "Err.. Search query empty" -u critical -r 5 && exit 1
-	curl -A "$agent" -s "$base_url/" -c "$cookie" | sed -nE 's|.*INNERTUBE_CONTEXT":(.*),"INNERTUBE_CONTEXT_CLIENT_NAME.*|\1|p' >"$logdir/context"
 
+	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20230731.00.00"}}' >"$logdir/context"
 	json_search="{
 	\"context\" : $(cat "$logdir/context"),
 	\"query\": \"$query\",
@@ -171,7 +172,7 @@ base_url="https://music.youtube.com"
 [ -d "$logdir" ] || mkdir "$logdir"
 cookie="$logdir/cookies"
 next_data="$logdir/next"
-agent="Mozilla/5.0 (X11; Linux x86_64; rv:108.0) Gecko/20100101 Firefox/110.0"
+agent="Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0"
 
 #call this script by script-name "function_name" "query"
 [ -z "$1" ] && help "$@"

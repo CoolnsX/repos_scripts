@@ -10,7 +10,7 @@
 
 [bkmark.webm](https://user-images.githubusercontent.com/76195824/207424619-dd64a520-877d-4d3e-a1ad-f3b400be68eb.webm)
 
-## setwall
+## setwall (removed as It works on system-level) (coming soon for hyprland)
 
 - Caution: don't blindly run this script as it edits the file on system level, read the actual code before proceeding
 - this only works for St and bspwm (hyprland with foot coming soon)

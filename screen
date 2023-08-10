@@ -1,0 +1,80 @@
+#!/bin/sh
+
+# script for screeen recording with either mic or speaker
+# ability to record both mic and speaker at same time is coming soon
+
+info() {
+	notify-send -h "string:x-canonical-private-synchronous:${0##*/}" -i "$1" -t "${2:-5000}" "$3" "$4"
+}
+
+menu() {
+	bemenu --fn 'IBM Plex Sans 15' -i -c -W "0.${2:-5}" -B 3 -p "$1" -l 26
+}
+
+record (){
+	rm -f "$tmp_file" "$process_file"
+	source=$(printf "screen only\nspeaker\nmic" | menu "Audio Source:" "3")
+	monitor=$(hyprctl monitors | sed -nE 's|Monitor ([^ ]*).*|\1|p')
+	[ "$(printf '%s\n' "$monitor" | wc -l)" -gt 1 ] && monitor=$(printf '%s' "$monitor" | menu "Choose Monitor:" "3")
+	[ -z "$source" ] && info "" "2000" "No option Selected" && return 0
+	info "simplescreenrecorder" "700" "Recording Started" "Capturing $monitor($source)"
+	sleep 0.3
+	[ "$source" = "screen only" ] && setsid -f wf-recorder -t -m "mp4" -f "$tmp_file" >/dev/null 2>&1 && return 0
+	pactl set-default-source "$(eval "printf \$$source")"
+	setsid -f wf-recorder -a -t -m "mp4" -f "$tmp_file" --output "$monitor" >/dev/null 2>&1
+}
+
+compress() {
+	duration=$(ffprobe -hide_banner -i "$tmp_file" 2>&1 | sed -nE 's|.*Duration: ([^,]*).*|\1|p')
+	i=19
+
+	while :;do
+		ffmpeg -loglevel error -hwaccel vaapi -hwaccel_device /dev/dri/renderD128 -i "$tmp_file" -vf 'format=nv12,hwupload' -c:v h264_vaapi -qp "$i" "$process_file" -y -progress - | while read -r line;
+		do 
+			complete=$(printf "%s\n" "$line" | sed -nE 's|out_time=(.*)|\1|p')
+			[ -n "$complete" ] && info "ffmpeg" "700" "Compressing File under 25 MB Using Quality Preset : $i.." "$complete out of $duration ($(du -m "$process_file" | cut -f1) MB)"
+			[ "$(du -m "$process_file" | cut -f1)" -gt 25 ] && killall -s KILL ffmpeg && break
+		done
+		[ "$(du -m "$process_file" | cut -f1)" -lt 25 ] && break
+		: $((i+=1))
+	done
+	info "ffmpeg" "1000" "File Successfully compressed with Quality Preset : $i"
+	[ -f "$process_file" ] && tmp_file=$process_file
+}
+
+stop (){
+	pgrep -af wf-recorder >/dev/null && killall -s SIGINT wf-recorder 2>/dev/null || return 0
+	info "" "" "Recording Stopped"
+	case $(printf "save locally\nupload to oshi\nupload to discord" | menu "Post-Record:" '3') in
+		*oshi)
+			info "icloud" "" "Uploading to Oshi"
+			out=$(curl -sk https://oshi.at -F shorturl=0 -F "f=@$tmp_file") 
+			[ -z "$out" ] && info "" "2000" "Unable to upload to oshi,moved the file from temp to your home folder as <unix_timestamp>.mp4" && mv "$tmp_file" "$HOME/$(date +%s).mp4" && return 1
+			printf "%s" "$out" | sed -nE 's|DL: (.*)|\1|p' | wl-copy && info "com.github.davidmhewitt.clipped" "2000" "Uploaded and Copied link to clipboard"
+			;;
+		*discord)
+			[ "$(du -m "$tmp_file" | cut -f1)" -gt 25 ] && compress #compressing file if greater than 25 MB
+			#will push discord code in next commit
+			;;
+		save*)
+			filename=$(: | menu "Enter Filename (default: screenrecord.mp4):")
+			mv "$tmp_file" "$HOME/$filename"
+			;;
+		*)
+			rm -f "$tmp_file" "$process_file" && info "user-trash" "2000" "Temporary File Deleted"
+			;;
+	esac
+
+}
+
+tmp_file="/tmp/screenrecord.mp4"
+process_file="/tmp/processed.mp4"
+#shellcheck disable=SC2034
+mic="alsa_input.pci-0000_00_1f.3-platform-skl_hda_dsp_generic.HiFi__hw_sofhdadsp_6__source" #It is called in eval on line 9
+#shellcheck disable=SC2034
+speaker="alsa_output.pci-0000_00_1f.3-platform-skl_hda_dsp_generic.HiFi__hw_sofhdadsp__sink.monitor" #It is called in eval on line 9
+
+# shellcheck source=./.functions
+. "$script_dir/.functions"
+
+$1 "$2"
