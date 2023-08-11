@@ -21,7 +21,7 @@ decrypt_allanime() {
 	printf "%s" "$-" | grep -q 'x' && set +x
 	for hex in $(printf '%s' "$1" | sed 's/../&\n/g'); do
 		dec=$(printf '%d' "0x$hex")
-		xor=$((dec ^ 48))
+		xor=$((dec ^ 56))
 		oct=$(printf "%03o" "$xor")
 		#shellcheck disable=SC2059
 		printf "\\$oct"
@@ -75,7 +75,7 @@ ep_no=$(printf "%s" "$url" | sed 's/.*Episode //g')
 
 info_$os "Loading Episode $title.."
 episode_embed_gql="query (\$showId: String!, \$translationType: VaildTranslationTypeEnumType!, \$episodeString: String!) {    episode(        showId: \$showId        translationType: \$translationType        episodeString: \$episodeString    ) {        episodeString sourceUrls    }}"
-data=$(curl -e https://allanime.to -sL --cipher AES256-SHA256 -G "{$base_url}/api" --data-urlencode "variables={\"showId\":\"$id\",\"translationType\":\"sub\",\"countryOrigin\":\"ALL\",\"episodeString\":\"$ep_no\"}" --data-urlencode "query=$episode_embed_gql" -A 'Mozilla/5.0 (Windows NT 6.1; Win64; rv:109.0) Gecko/20100101 Firefox/109.0' | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":"##([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
+data=$(curl -e https://allanime.to -sL --cipher AES256-SHA256 -G "{$base_url}/api" --data-urlencode "variables={\"showId\":\"$id\",\"translationType\":\"sub\",\"countryOrigin\":\"ALL\",\"episodeString\":\"$ep_no\"}" --data-urlencode "query=$episode_embed_gql" -A 'Mozilla/5.0 (Windows NT 6.1; Win64; rv:109.0) Gecko/20100101 Firefox/109.0' | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":"--([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
 info_$os "Fetching Embed links"
 
 #dropbox links
