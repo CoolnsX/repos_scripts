@@ -54,8 +54,64 @@ help() {
 	exit 0
 }
 
+cleanup_shit(){
+	rm -rdf "$logdir"
+	exit 0
+}
+
+get_cookies() {
+	for i in $(sqlite3 "$HOME/.config/google-chrome/Default/Cookies" "SELECT name,REPLACE(base64(SUBSTR(encrypted_value,4)),CHAR(10),'') FROM cookies WHERE host_key='.youtube.com';")
+	do 
+		printf "%s=%s; " "$(printf '%s' "$i" | cut -d'|' -f1)" "$(printf '%s' "$i" | cut -d'|' -f2 | base64 -d | openssl enc -d -aes-128-cbc -K fd621fe5a2b402539dfa147ca9272778 -iv 20202020202020202020202020202020)" 
+	done > "$cookie"
+}
+
 get_data() {
-	curl -X POST -A "$agent" -s "$base_url/youtubei/v1/$1?key=AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30&prettyPrint=false" -H "content-type:application/json" -d "$2" -b "$cookie" -e "$base_url/$3" -c "$cookie"
+	grep -q "SAPISID" "$logdir/cookies" 2>/dev/null && sapisid_header="Authorization: SAPISIDHASH $(printf '%s_%s' "$(date +%s)" "$(printf '%s %s %s' "$(date +%s)" "$(sed -nE 's|.*SAPISID=([^;]*);.*|\1|p' "$logdir/cookies")" "$base_url" | sha1sum | cut -d' ' -f1)")" || sapisid_header=""
+	curl -X POST -A "${3:-$agent}" -s "$base_url/youtubei/v1/$1?key=${4:-AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30}&prettyPrint=false" -H "content-type:application/json" -d "$2" -b "$(cat "$cookie")" -e "$base_url" -H "$sapisid_header"
+}
+
+get_music_list(){
+	json_next="{
+	\"enablePersistentPlaylistPanel\": true,
+	\"tunerSettingValue\": \"AUTOMIX_SETTING_NORMAL\",
+	\"playlistId\": \"RDAMVM$(cat "$logdir/start")\",
+	\"params\": \"wAEB\",
+	$([ -e "$logdir/continue_token" ] && cat "$logdir/continue_token")
+	\"isAudioOnly\": true,
+	\"context\": $(cat "$logdir/context")
+	}"
+	get_data "next" "$json_next" | tee "$logdir/extract_continuation" | sed 's/playlistPanelVideoRenderer/\n/g' | sed -nE 's_.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*_\1 - \2\t\3_p' | sed '$d' >> "$logdir/next"
+	sed -nE 's|.*nextRadioContinuationData":\{([^,]*).*|\1,|p' "$logdir/extract_continuation" > "$logdir/continue_token"
+}
+
+get_song_lyrics() {
+	json_next="{
+	\"enablePersistentPlaylistPanel\": true,
+	\"tunerSettingValue\": \"AUTOMIX_SETTING_NORMAL\",
+	\"videoId\": \"$1\",
+	\"isAudioOnly\": true,
+	\"context\": $(cat "$logdir/context")
+	}"
+
+	browseId=$(get_data "next" "$json_next" | sed -nE 's|.*"browseId":"(MPLYt[^"]*)".*TRACK_LYRICS.*|\1|p')
+	if [ -n "$browseId" ]; then
+		json_lyrics="{
+		  \"context\": {
+		    \"client\": {
+		      \"clientName\": \"ANDROID_MUSIC\",
+		      \"clientVersion\": \"$andy_yt_ver\",
+		      \"androidSdkVersion\": $(( random_no + extra_up + 29 )),
+		      \"userAgent\": \"$droid_agent\",
+		      \"hl\": \"en\",
+		      \"timeZone\": \"UTC\",
+		      \"utcOffsetMinutes\": 0
+		    }
+		  },
+		  \"browseId\": \"$browseId\"
+  		}"
+		get_data "browse" "$json_lyrics" "$droid_agent" "AIzaSyAOghZGza2MQSZkY_zfZ370N-PUdXEo8AI" | sed 's/metadata"/\n/g' | sed -nE 's|.*lyricLine":"([^"]*)","cueRange":\{"startTimeMilliseconds":"([^"]*)","endTimeMilliseconds":"([^"]*)".*|\3\t\1|p' > "$logdir/lyrics"
+	fi
 }
 
 loop() {
@@ -63,8 +119,8 @@ loop() {
 	#it plays next song after the current song get played completely,it does nothing until u run the search_play function then this script kicks in
 	#call it by script-name "loop" "print" for printing the remaining time in terminal
 	#call it by script-name "loop" for anonymously
-	trap "rm -f $logdir/next;exit" INT HUP TERM
-	while true; do
+	trap cleanup_shit INT HUP TERM
+	while :; do
 		sleep 4
 		pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^\.]*).*_\1_p')
 		while [ -n "$pos" ]; do
@@ -74,8 +130,9 @@ loop() {
 			sleep 2
 		done
 		pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^\.]*).*_\1_p')
-		pgrep -f "mpvsocket" >/dev/null || exit 0
-		[ -z "$pos" ] && pgrep -f "mpvsocket" >/dev/null && [ -n "$(cat "$logdir/next")" ] && play "$(shuf -n1 "$logdir/next")" "$1"
+		pgrep -f "mpvsocket" >/dev/null || cleanup_shit
+		[ -z "$pos" ] && i=$(cat "$logdir/counter") && : $((i+=1)) && pgrep -f "mpvsocket" >/dev/null && [ -n "$(cat "$logdir/next")" ] && play "$(sed -n "${i}p" "$logdir/next")" "$1" && printf '%s' "$i" > "$logdir/counter"
+		[ "$(cat "$logdir/counter")" -ge "$(wc -l  "$logdir/next" | cut -d' ' -f1)" ] && get_music_list
 	done
 }
 
@@ -88,15 +145,16 @@ play() {
 	[ -z "$id" ] && printf "[ youtube ] Invalid link\n" && exit 1
 
 	#get song's audio url
-	random_no=$(head /dev/urandom | tr -dc '1-2' | cut -c1)
-	andy_yt_ver="6.13.52"
+	random_no=$(head /dev/urandom | tr -dc '0-4' | cut -c1)
+	andy_yt_ver="6.16.52"
+	extra_up=$((random_no >= 2))
 	droid_agent="com.google.android.apps.youtube.music/$andy_yt_ver (Linux; U; Android 1$random_no) gzip"
 	json="{
 	  \"context\": {
 	    \"client\": {
 	      \"clientName\": \"ANDROID_MUSIC\",
 	      \"clientVersion\": \"$andy_yt_ver\",
-	      \"androidSdkVersion\": $((random_no + 29)),
+	      \"androidSdkVersion\": $(( random_no + extra_up + 29 )),
 	      \"userAgent\": \"$droid_agent\",
 	      \"hl\": \"en\",
 	      \"timeZone\": \"UTC\",
@@ -113,7 +171,7 @@ play() {
 	  \"racyCheckOk\": true
 	}"
 
-	audio_url=$(curl -X POST -A "$droid_agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAOghZGza2MQSZkY_zfZ370N-PUdXEo8AI&prettyPrint=false" -H "content-type:application/json" -d "$json" -H "x-youtube-client-version:$andy_yt_ver" -H "x-youtube-client-name:21" | sed -nE 's_.*itag":251,"url":"([^"]*)".*_\1_p')
+	audio_url=$(get_data "player" "$json" "$droid_agent" "AIzaSyAOghZGza2MQSZkY_zfZ370N-PUdXEo8AI" | sed -nE 's_.*itag":251,"url":"([^"]*)".*_\1_p')
 	[ -z "$audio_url" ] && return 0
 	if [ -n "$2" ]; then
 		printf "Name >> %s\n" "$title"
@@ -121,46 +179,59 @@ play() {
 		printf "Audio URL >> %s\n" "$audio_url"
 	fi
 
-	curl -s "https://i.ytimg.com/vi/$id/hqdefault.jpg" -o - | convert - -crop 270x270+105+45 "$logdir/default.jpg" && notify-send -r 5 -i "$logdir/default.jpg" "Now Playing" "$title" -t 5000
+	curl -s "https://i.ytimg.com/vi/$id/hqdefault.jpg" -o - | convert - -crop 270x270+105+45 "$logdir/default.jpg" && notify-send -h "string:x-canonical-private-synchronous:${0##*/}" -i "$logdir/default.jpg" "Now Playing" "$title" -t 5000
 	pgrep -f "mpvsocket" >/dev/null || (setsid -f mpv --really-quiet --input-ipc-server=/tmp/mpvsocket --idle --quiet >/dev/null && sleep 1)
 	echo "{ \"command\": [\"loadfile\", \"$audio_url\", \"replace\"] }" | socat - /tmp/mpvsocket
-	cut -d':' -f2 "$logdir/current" >"$logdir/prev"
-	prev_id=$(cut -d'>' -f2 "$logdir/prev")
 	printf "currently playing : %s >%s\n" "$title" "$id" >"$logdir/current"
 
 	#next songs data
-	json_next="{
-	\"enablePersistentPlaylistPanel\": true,
-	\"tunerSettingValue\": \"AUTOMIX_SETTING_NORMAL\",
-	\"playlistId\": \"RDAMVM$id\",
-	\"isAudioOnly\": true,
-	\"context\": $(cat "$logdir/context")
-	}"
-	get_data "next" "$json_next" | sed 's/playlistPanelVideoRenderer/\n/g' | sed -nE 's_.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*_\1 - \2\t\3_p' | sed "/$id/d;/$prev_id/d" >"$next_data" &
-	pgrep -f "yt-music loop" >/dev/null || setsid -f "$HOME"/repos_scripts/yt-music loop
+	[ -n "$3" ] && get_music_list &
+	get_song_lyrics "$id" "" &
+	pgrep -f "yt-music loop" >/dev/null || setsid -f "$0" loop
 }
 
 search_play() {
 	#run this if u r starting the script first time like this
 	#call this by "script-name" "search_play" "search_query"
 	[ -z "$1" ] && query=$(: | menu "Yt-music [Search]:") || query="$1"
-	[ -z "$query" ] && notify-send "Err.. Search query empty" -u critical -r 5 && exit 1
+	[ -z "$query" ] && notify-send "Err.. Search query empty" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && exit 1
 
+	#storing context
 	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20230731.00.00"}}' >"$logdir/context"
+
+	#json for song search
 	json_search="{
 	\"context\" : $(cat "$logdir/context"),
 	\"query\": \"$query\",
 	\"params\": \"EgWKAQIIAWoKEAMQBBAJEAoQBQ%3D%3D\"
 	}"
-	res=$(get_data "search" "$json_search" "search?q=$(printf "%s" "$1" | tr ' ' '+')" | sed 's/watchEndpoint"/\n/g' | sed -nE 's_.*videoId":"([^"]*)",.*label":"Play ([^"]*)".*_\2\t\1_p' | menu "Yt-music [Play]:")
-	[ -z "$res" ] || play "$res" "verbose"
+
+	#extracting your cookies so that the song list are according to your taste
+	get_cookies
+	printf "0" > "$logdir/counter"
+	printf '' > "$logdir/next"
+	res=$(get_data "search" "$json_search" "$agent" | sed 's/watchEndpoint"/\n/g' | sed -nE 's_.*videoId":"([^"]*)",.*label":"Play ([^"]*)".*_\2\t\1_p' | menu "Yt-music [Play]:")
+	printf "%s" "$res" | cut -f2 > "$logdir/start"
+	[ -z "$res" ] || play "$res" "verbose" "1"
 }
 
 play_next() {
 	#call this by script-name "play_next" for playing next song immediately
 	#or add "menu" after "play_next" to show menu for selecting and playing next song immediately
 	#like this script-name "play_next" "menu"
-	[ -z "$1" ] && play "$(shuf -n1 "$logdir/next")" "verbose" || (pgrep -f "mpvsocket" && notify-send -r 5 -i "$logdir/default.jpg" "$(cut -d">" -f1 "$logdir/current" | tr ':' '\n')" && play "$(menu "YT-music [play-next]: " <"$logdir/next")" "verbose")
+	pgrep -f "mpvsocket" || return 0
+	i=$(cat "$logdir/counter")
+	if [ -z "$1" ]; then 
+		: $((i+=1))
+		play "$(sed -n "${i}p" "$logdir/next")" "$1"
+	else
+		notify-send -h "string:x-canonical-private-synchronous:${0##*/}" -i "$logdir/default.jpg" "$(cut -d">" -f1 "$logdir/current" | tr ':' '\n')"
+		next=$(nl -n'ln' "$logdir/next" | sed "s/^$i /& /" | menu "YT-music [play-next]: ")
+		[ -z "$next" ] && return 0
+		i=$(printf '%s' "$next" | sed 's///g' | cut -f1 | tr -d ' ')
+		play "$(printf '%s' "$next" | cut -f2-)" "verbose"
+	fi
+	printf '%s' "$i" > "$logdir/counter"
 }
 
 menu() {
@@ -171,7 +242,6 @@ logdir="/tmp/yt-music"
 base_url="https://music.youtube.com"
 [ -d "$logdir" ] || mkdir "$logdir"
 cookie="$logdir/cookies"
-next_data="$logdir/next"
 agent="Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0"
 
 #call this script by script-name "function_name" "query"

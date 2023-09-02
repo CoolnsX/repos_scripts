@@ -15,7 +15,7 @@ download_apk(){
 	[ -z "$download_url" ] && info "[ $app ][ v$version ] Unable to Fetch Download URL.." "31" && exit 1
 	info "[ $app ][ v$version ] Downloading App.."
 	aria2c -x16 -s16 "${apk_provider_url}${download_url}" --user-agent="$agent" -d "$tmp_dir" -o "$app-$version.apk" --allow-overwrite=true --check-certificate=false --download-result=hide --summary-interval=0 && info "[ $app ][ v$version ] App Downloaded.." && return 0
-	info "[ $app ][ v$version ] Unable to Download.." "31"
+	info "[ $app ][ v$version ] Unable to Download.." "31" && exit 1
 }
 
 tmp_dir="/tmp/revanced"
@@ -30,11 +30,12 @@ rv_inte="integrations-$date.apk"
 [ -d "$tmp_dir" ] || mkdir "$tmp_dir"
 
 #pre-requisite
-if [ ! -f "$tmp_dir/$rv_cli" ] || [ ! -f "$tmp_dir/$rv_patch" ] || [ ! -f "$tmp_dir/$rv_inte" ];then
+if  [ ! -f "$tmp_dir/$rv_cli.aria2" ] && [ ! -f "$tmp_dir/$rv_patch.aria2" ] && [ ! -f "$tmp_dir/$rv_inte.aria2" ] && [ -f "$tmp_dir/$rv_cli" ] && [ -f "$tmp_dir/$rv_patch" ] && [ -f "$tmp_dir/$rv_inte" ];then
+	info "revanced-cli,revanced-patches,revanced-integrations already downloaded" "32"
+else
+	rm -f "$tmp_dir"/*.aria2
 	info "Downloading revanced-cli,revanced-patches,revanced-integrations.."
 	printf "%s\n%s\n%s" "$(curl -s "https://api.github.com/repos/revanced/revanced-cli/releases/latest" -L -A "$agent" | sed -nE "s|.*browser_download_url\": \"([^\"]*.jar)\"|\1\n\tout=$rv_cli|p")" "$(curl -s "https://api.github.com/repos/revanced/revanced-patches/releases/latest" -L -A "$agent" | sed -nE "s|.*browser_download_url\": \"([^\"]*.jar)\"|\1\n\tout=$rv_patch|p")" "$(curl -s "https://api.github.com/repos/revanced/revanced-integrations/releases/latest" -L -A "$agent" | sed -nE "s|.*browser_download_url\": \"([^\"]*.apk)\"|\1\n\tout=$rv_inte|p")" | aria2c -j3 -x16 -s16 -i - --check-certificate=false --download-result=hide --summary-interval=0 --allow-overwrite=true -d "$tmp_dir" && info "Downloaded revanced-cli,revanced-patches,revanced-integrations at $tmp_dir"
-else
-	info "revanced-cli,revanced-patches,revanced-integrations already downloaded" "32"
 fi
 
 #choose your app
@@ -46,14 +47,14 @@ fi
 case $app in 
 	youtube)
 		arch="universal"
-		version=$(curl -s "https://api.revanced.app/v2/patches/latest" | sed -nE 's|.*"compatiblePackages":\[\{"name":"com.google.android.youtube","versions":\[(.*[^\]]).*|\1|p' | tr -d ']}"' | tr ',' '\n' | tail -1 | tr '.' '-')
-		exclude_patch_list="always-autorepeat,disable-auto-captions,disable-zoom-haptics,enable-debugging,external-downloads,hide-autoplay-button,hide-captions-button,hide-cast-button,hide-floating-microphone-button,hide-layout-components,hide-load-more-button,hide-player-buttons,hide-player-overlay,hide-seekbar,hide-timestamp,hide-video-action-buttons,navigation-buttons,player-flyout-menu,remove-player-controls-background,spoof-app-version,swipe-controls"
+		[ -z "$2" ] && version=$(curl -s "https://api.revanced.app/v2/patches/latest" | sed -nE 's|.*"compatiblePackages":\[\{"name":"com.google.android.youtube","versions":\[(.*[^\]]).*|\1|p' | tr -d ']}"' | tr ',' '\n' | tail -1) || version=$2
+		exclude_patch_list="always-autorepeat,disable-auto-captions,disable-zoom-haptics,enable-debugging,external-downloads,hide-autoplay-button,hide-captions-button,hide-cast-button,hide-floating-microphone-button,hide-layout-components,hide-load-more-button,hide-player-buttons,custom-player-overlay-opacity,hide-seekbar,hide-timestamp,hide-video-action-buttons,navigation-buttons,player-flyout-menu,remove-player-controls-background,spoof-app-version,swipe-controls"
 		out="yt-revanced-$version.apk"
 		;;
 	youtube-music)
 		arch="arm64-v8a"
-		[ -z "$2" ] && version="6-10-53" || version=$2
-		exclude_patch_list="dummy-patch"
+		[ -z "$2" ] && version="6.10.53" || version=$2
+		exclude_patch_list=""
 		out="yt-music-revanced-$version.apk"
 		;;
 esac
@@ -66,12 +67,12 @@ else
 fi 
 
 info "Checking Patches for excluding.."
-patch_list=$(java -jar "$tmp_dir/$rv_cli" -b "$tmp_dir/$rv_patch" -a "$tmp_dir/$app-$version.apk" -l --with-packages)
+patch_list=$(java -jar "$tmp_dir/$rv_cli" list-patches "$tmp_dir/$rv_patch"  --with-descriptions=false)
 
 if [ -n "$exclude_patch_list" ];then
 	info "Excluding Patches.." "33"
 	for i in $(printf "%s" "$exclude_patch_list" | tr ',' '\n');do
-	if printf "%s" "$patch_list" | grep -q "$i";then 
+		if printf "%s" "$patch_list" | grep -iq "$(printf '%s' "$i" | tr '-' ' ')";then 
 		res="32m ✓"
 	else
 		res="31m "
@@ -79,15 +80,15 @@ if [ -n "$exclude_patch_list" ];then
 	fi
 	printf "\033[2K\r\033[1;%s %s\n" "$res" "$i"
 	done
-	exclude_patches=$(printf "%s" "$exclude_patch_list" | tr ',' '\n' | sed 's|^|-e |g' | tr '\n' ' ')
+	exclude_patches=$(printf "%s" "$exclude_patch_list" | tr ',' '\n' | sed 's|^|--exclude |g' | tr '\n' ' ')
 else
 	info "Nothing to Exclude.." "32"
 fi
 
-[ -n "$check" ] && info "Some of the patches are not Excluded,Check all failed patches using :" "31" && info "java -jar '$tmp_dir/$rv_cli' -b '$tmp_dir/$rv_patch' -a '$tmp_dir/$app-$version.apk' -l --with-packages" "33" && exit 1
+[ -n "$check" ] && info "Some of the patches are not Excluded,Check all failed patches using :" "31" && info "java -jar '$tmp_dir/$rv_cli' list-patches '$tmp_dir/$rv_patch' --with-packages" "33" && exit 1
 info "All listed Patches Excluded"
 
 info "Patching $app-$version.apk.."
 
 #shellcheck disable=SC2086
-java -jar "$tmp_dir/$rv_cli" -a "$tmp_dir/$app-$version.apk" -b "$tmp_dir/$rv_patch" -m "$tmp_dir/$rv_inte" -o "$HOME/$out" --temp-dir="$tmp_dir/build" $exclude_patches
+java -jar "$tmp_dir/$rv_cli" patch  --patch-bundle "$tmp_dir/$rv_patch" --merge "$tmp_dir/$rv_inte" --out "$HOME/$out" --resource-cache "$tmp_dir/revanced-resource-cache" "$tmp_dir/$app-$version.apk" $exclude_patches

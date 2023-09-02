@@ -13,15 +13,19 @@ menu() {
 
 record() {
 	rm -f "$tmp_file" "$process_file"
+	#shellcheck disable=SC2034
+	mic="$(pactl list sources | grep -B1 'node.nick = "Digital Microphone"' | sed -nE 's|.*node.name = "([^"]*)"|\1.monitor|p')" #It is called in eval on line 9
+	#shellcheck disable=SC2034
+	speaker="$(pactl list sources | grep -B1 'node.nick = "Speaker + Headphones"' | sed -nE 's|.*node.name = "([^"]*)"|\1.monitor|p')" #It is called in eval on line 9
 	source=$(printf "screen only\nspeaker\nmic" | menu "Audio Source:" "3")
 	monitor=$(hyprctl monitors | sed -nE 's|Monitor ([^ ]*).*|\1|p')
 	[ "$(printf '%s\n' "$monitor" | wc -l)" -gt 1 ] && monitor=$(printf '%s' "$monitor" | menu "Choose Monitor:" "3")
 	[ -z "$source" ] && info "" "2000" "No option Selected" && return 0
 	info "simplescreenrecorder" "700" "Recording Started" "Capturing $monitor($source)"
 	sleep 0.3
-	[ "$source" = "screen only" ] && setsid -f wf-recorder -t -m "mp4" -f "$tmp_file" >/dev/null 2>&1 && return 0
-	pactl set-default-source "$(eval "printf \$$source")"
-	setsid -f wf-recorder -a -t -m "mp4" -f "$tmp_file" --output "$monitor" >/dev/null 2>&1
+	[ "$source" != "screen only" ] && pactl set-default-source "$(eval "printf \$$source")" && arg=-a
+	#shellcheck disable=SC2086
+	setsid -f wf-recorder -t -m "mp4" -f "$tmp_file" --output "$monitor" $arg >/dev/null 2>&1
 }
 
 compress() {
@@ -31,8 +35,9 @@ compress() {
 	while :; do
 		ffmpeg -loglevel error -hwaccel vaapi -hwaccel_device /dev/dri/renderD128 -i "$tmp_file" -vf 'format=nv12,hwupload' -c:v h264_vaapi -qp "$i" "$process_file" -y -progress - | while read -r line; do
 			complete=$(printf "%s\n" "$line" | sed -nE 's|out_time=(.*)|\1|p')
-			[ -n "$complete" ] && info "ffmpeg" "700" "Compressing File under 25 MB Using Quality Preset : $i.." "$complete out of $duration ($(du -m "$process_file" | cut -f1) MB)"
-			[ "$(du -m "$process_file" | cut -f1)" -gt 25 ] && killall -s KILL ffmpeg && break
+			size=$(du -m "$process_file" | cut -f1)
+			[ -n "$complete" ] && info "ffmpeg" "700" "Compressing File under 25 MB Using Quality Preset : $i.." "$complete / $duration ($size MB)"
+			[ "$size" -gt 25 ] && killall -s KILL ffmpeg && break
 		done
 		[ "$(du -m "$process_file" | cut -f1)" -lt 25 ] && break
 		: $((i += 1))
@@ -51,14 +56,30 @@ stop() {
 			[ -z "$out" ] && info "" "2000" "Unable to upload to oshi,moved the file from temp to your home folder as <unix_timestamp>.mp4" && mv "$tmp_file" "$HOME/$(date +%s).mp4" && return 1
 			printf "%s" "$out" | sed -nE 's|DL: (.*)|\1|p' | wl-copy && info "com.github.davidmhewitt.clipped" "2000" "Uploaded and Copied link to clipboard"
 			;;
+
 		*discord)
+			base_url="https://discord.com/api/v10"
+			#shellcheck disable=SC1091
+			. "$HOME"/.secrets
+
+			channel=$(curl -s "$base_url/guilds/$SERVER_ID/channels" -H "Authorization: $TOKEN" | tr '{}' '\n' | sed -nE 's|.*"id":"([^"]*)".*last_message_id.*"name":"([^"]*)".*|\1\t\2|p' | menu "Select Channel: ")
+			channel_name=$(printf "%s" "$channel" | cut -f2)
+			channel_id=$(printf "%s" "$channel" | cut -f1)
 			[ "$(du -m "$tmp_file" | cut -f1)" -gt 25 ] && compress #compressing file if greater than 25 MB
-			#will push discord code in next commit
+			info "discord" "" "Uploading to Discord in $channel_name"
+			content="${tmp_file##*/} ($(du -h "$tmp_file" | cut -f1)) uploaded by coolans"
+			curl -s "$base_url/channels/$channel_id/messages" -H "Authorization: $TOKEN" -H "Accept: application/json" -H "Content-Type: multipart/form-data" -X POST -F "file=@$tmp_file" -F 'payload_json={"content":"'"${content}"'"}' && info "" "2000" "Uploaded $tmp_file ($(du -h "$tmp_file" | cut -f1)) to $channel_name in Discord" && return 0
+			filename="screenrecord-$(date +"%F_%H-%M-%S").mp4"
+			mv "$tmp_file" "$HOME/$filename" && info "" "2000" "Unable to upload to Discord,file moved to your home folder as $filename"
 			;;
+
 		save*)
-			filename=$(: | menu "Enter Filename (default: screenrecord.mp4):")
+			defaultname="screenrecord-$(date +"%F_%H-%M-%S").mp4"
+			filename=$(: | menu "Enter Filename (default: $defaultname):")
+			[ -z "$filename" ] && filename=$defaultname
 			mv "$tmp_file" "$HOME/$filename"
 			;;
+
 		*)
 			rm -f "$tmp_file" "$process_file" && info "user-trash" "2000" "Temporary File Deleted"
 			;;
@@ -68,9 +89,6 @@ stop() {
 
 tmp_file="/tmp/screenrecord.mp4"
 process_file="/tmp/processed.mp4"
-#shellcheck disable=SC2034
-mic="alsa_input.pci-0000_00_1f.3-platform-skl_hda_dsp_generic.HiFi__hw_sofhdadsp_6__source" #It is called in eval on line 9
-#shellcheck disable=SC2034
-speaker="alsa_output.pci-0000_00_1f.3-platform-skl_hda_dsp_generic.3.HiFi__hw_sofhdadsp__sink.monitor" #It is called in eval on line 9
 
-$1 "$2"
+
+[ "$#" -gt 0 ] && $1 "$2"
