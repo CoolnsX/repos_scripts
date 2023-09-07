@@ -76,6 +76,7 @@ get_music_list(){
 	\"enablePersistentPlaylistPanel\": true,
 	\"tunerSettingValue\": \"AUTOMIX_SETTING_NORMAL\",
 	\"playlistId\": \"RDAMVM$(cat "$logdir/start")\",
+	\"index\": $(cat "$logdir/counter"),
 	\"params\": \"wAEB\",
 	$([ -e "$logdir/continue_token" ] && cat "$logdir/continue_token")
 	\"isAudioOnly\": true,
@@ -89,6 +90,8 @@ get_song_lyrics() {
 	json_next="{
 	\"enablePersistentPlaylistPanel\": true,
 	\"tunerSettingValue\": \"AUTOMIX_SETTING_NORMAL\",
+	\"playlistId\": \"RDAMVM$(cat "$logdir/start")\",
+	\"index\": $(cat "$logdir/counter"),
 	\"videoId\": \"$1\",
 	\"isAudioOnly\": true,
 	\"context\": $(cat "$logdir/context")
@@ -110,7 +113,7 @@ get_song_lyrics() {
 		  },
 		  \"browseId\": \"$browseId\"
   		}"
-		get_data "browse" "$json_lyrics" "$droid_agent" "AIzaSyAOghZGza2MQSZkY_zfZ370N-PUdXEo8AI" | sed 's/metadata"/\n/g' | sed -nE 's|.*lyricLine":"([^"]*)","cueRange":\{"startTimeMilliseconds":"([^"]*)","endTimeMilliseconds":"([^"]*)".*|\3\t\1|p' > "$logdir/lyrics"
+		get_data "browse" "$json_lyrics" "$droid_agent" "AIzaSyAOghZGza2MQSZkY_zfZ370N-PUdXEo8AI" | sed 's/metadata"/\n/g' | sed -nE 's|.*lyricLine":"([^"]*)","cueRange".*"endTimeMilliseconds":"([^"]*)".*|\2\t\1|p' > "$logdir/lyrics"
 	fi
 }
 
@@ -131,8 +134,9 @@ loop() {
 		done
 		pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^\.]*).*_\1_p')
 		pgrep -f "mpvsocket" >/dev/null || cleanup_shit
-		[ -z "$pos" ] && i=$(cat "$logdir/counter") && : $((i+=1)) && pgrep -f "mpvsocket" >/dev/null && [ -n "$(cat "$logdir/next")" ] && play "$(sed -n "${i}p" "$logdir/next")" "$1" && printf '%s' "$i" > "$logdir/counter"
-		[ "$(cat "$logdir/counter")" -ge "$(wc -l  "$logdir/next" | cut -d' ' -f1)" ] && get_music_list
+		#shellcheck disable=SC2030,SC2031
+		[ -z "$pos" ] && i=$(cat "$logdir/counter") && : $((i+=1)) && pgrep -f "mpvsocket" >/dev/null && [ -n "$(cat "$logdir/next")" ] && play "$(sed -n "$((i+=1))p" "$logdir/next")" "$1" && printf '%s' "$i" > "$logdir/counter"
+		tail -1 "$logdir/next" | grep -q "$(cut -d'>' -f2 < "$logdir/current")" && get_music_list
 	done
 }
 
@@ -186,7 +190,7 @@ play() {
 
 	#next songs data
 	[ -n "$3" ] && get_music_list &
-	get_song_lyrics "$id" "" &
+	get_song_lyrics "$id" &
 	pgrep -f "yt-music loop" >/dev/null || setsid -f "$0" loop
 }
 
@@ -210,7 +214,9 @@ search_play() {
 	get_cookies
 	printf "0" > "$logdir/counter"
 	printf '' > "$logdir/next"
+	rm -f "$logdir/continue_token"
 	res=$(get_data "search" "$json_search" "$agent" | sed 's/watchEndpoint"/\n/g' | sed -nE 's_.*videoId":"([^"]*)",.*label":"Play ([^"]*)".*_\2\t\1_p' | menu "Yt-music [Play]:")
+	printf "%s\n" "$res" >> "$logdir/next"
 	printf "%s" "$res" | cut -f2 > "$logdir/start"
 	[ -z "$res" ] || play "$res" "verbose" "1"
 }
@@ -223,10 +229,12 @@ play_next() {
 	i=$(cat "$logdir/counter")
 	if [ -z "$1" ]; then 
 		: $((i+=1))
-		play "$(sed -n "${i}p" "$logdir/next")" "$1"
+		#shellcheck disable=SC2030
+		play "$(sed -n "$((i+=1))p" "$logdir/next")" "$1"
 	else
 		notify-send -h "string:x-canonical-private-synchronous:${0##*/}" -i "$logdir/default.jpg" "$(cut -d">" -f1 "$logdir/current" | tr ':' '\n')"
-		next=$(nl -n'ln' "$logdir/next" | sed "s/^$i /& /" | menu "YT-music [play-next]: ")
+		#shellcheck disable=SC2031
+		next=$(nl -n'ln' -v0 "$logdir/next" | sed "s/^$i /& /" | menu "YT-music [play-next]: ")
 		[ -z "$next" ] && return 0
 		i=$(printf '%s' "$next" | sed 's///g' | cut -f1 | tr -d ' ')
 		play "$(printf '%s' "$next" | cut -f2-)" "verbose"
