@@ -11,23 +11,6 @@ menu() {
 	bemenu --fn 'IBM Plex Sans 15' -i -c -W "0.${2:-5}" -B 3 -p "$1" -l 26
 }
 
-record() {
-	rm -f "$tmp_file" "$process_file"
-	#shellcheck disable=SC2034
-	mic="$(pactl list sources | grep -B1 'node.nick = "Digital Microphone"' | sed -nE 's|.*node.name = "([^"]*)"|\1.monitor|p')" #It is called in eval on line 9
-	#shellcheck disable=SC2034
-	speaker="$(pactl list sources | grep -B1 'node.nick = "Speaker + Headphones"' | sed -nE 's|.*node.name = "([^"]*)"|\1.monitor|p')" #It is called in eval on line 9
-	source=$(printf "screen only\nspeaker\nmic" | menu "Audio Source:" "3")
-	monitor=$(hyprctl monitors | sed -nE 's|Monitor ([^ ]*).*|\1|p')
-	[ "$(printf '%s\n' "$monitor" | wc -l)" -gt 1 ] && monitor=$(printf '%s' "$monitor" | menu "Choose Monitor:" "3")
-	#shellcheck disable=SC2089
-	[ -z "$source" ] && info "" "2000" "No option Selected" && return 0
-	[ "$source" != "screen only" ] && pactl set-default-source "$(eval "printf \$$source")" && arg=-a
-	#shellcheck disable=SC2086,SC2090
-	info "simplescreenrecorder" "1000" "Select Region" "Tap/Click to select full" && setsid -f wf-recorder -x yuv420p -f /tmp/screenrecord.mp4 --output eDP-1 $arg -g "$(slurp)" >/dev/null 2>&1
-	info "simplescreenrecorder" "700" "Recording Started" "Capturing $monitor($source)"
-}
-
 compress() {
 	duration=$(ffprobe -hide_banner -i "$tmp_file" 2>&1 | sed -nE 's|.*Duration: ([^,]*).*|\1|p')
 	i=19
@@ -46,10 +29,27 @@ compress() {
 	[ -f "$process_file" ] && tmp_file=$process_file
 }
 
+record() {
+	rm -f "$tmp_file" "$process_file"
+	#shellcheck disable=SC2034
+	mic="$(pactl list sources | grep -B1 'node.nick = "Digital Microphone"' | sed -nE 's|.*node.name = "([^"]*)"|\1.monitor|p')" #It is called in eval on line 9
+	#shellcheck disable=SC2034
+	speaker="$(pactl list sources | grep -B1 'node.nick = "Speaker + Headphones"' | sed -nE 's|.*node.name = "([^"]*)"|\1.monitor|p')" #It is called in eval on line 9
+	source=$(printf "screen only\nspeaker\nmic" | menu "Audio Source:" "3")
+	monitor=$(hyprctl monitors | sed -nE 's|Monitor ([^ ]*).*|\1|p')
+	[ "$(printf '%s\n' "$monitor" | wc -l)" -gt 1 ] && monitor=$(printf '%s' "$monitor" | menu "Choose Monitor:" "3")
+	#shellcheck disable=SC2089
+	[ -z "$source" ] && info "" "2000" "No option Selected" && return 0
+	[ "$source" != "screen only" ] && pactl set-default-source "$(eval "printf \$$source")" && arg=-a
+	#shellcheck disable=SC2086,SC2090
+	info "simplescreenrecorder" "1000" "Select Region" "Tap/Click to select full" && setsid -f wf-recorder -x yuv420p -f /tmp/screenrecord.mp4 --output eDP-1 $arg -g "$(slurp)" >/dev/null 2>&1
+	info "simplescreenrecorder" "700" "Recording Started" "Capturing $monitor($source)"
+}
+
 stop() {
 	pgrep -af wf-recorder >/dev/null && killall -s SIGINT wf-recorder 2>/dev/null || return 0
 	info "" "" "Recording Stopped"
-	case $(printf "save locally\nupload to oshi\nupload to discord" | menu "Post-Record:" '3') in
+	case $(printf "upload to discord\nupload to nextcloud\nupload to oshi\nsave locally" | menu "Post-Record:" '3') in
 		*oshi)
 			info "icloud" "" "Uploading to Oshi"
 			out=$(curl -sk https://oshi.at -F shorturl=0 -F "f=@$tmp_file")
@@ -57,10 +57,22 @@ stop() {
 			printf "%s" "$out" | sed -nE 's|DL: (.*)|\1|p' | wl-copy && info "com.github.davidmhewitt.clipped" "2000" "Uploaded and Copied link to clipboard"
 			;;
 
-		*discord)
-			base_url="https://discord.com/api/v10"
+		*nextcloud)
+			info "icloud" "" "Uploading to NextCloud"
+
 			#shellcheck disable=SC1091
 			. "$HOME"/.secrets
+			cloudname="screenrecord-$(date +"%F_%H-%M-%S").mp4"
+
+			#upload to nextcloud instance, universal code
+			curl -s "$NC_HOST/remote.php/dav/files/${NC_USER}${NC_FOLDER_PATH}/$cloudname" -u "$NC_USER:$NC_PASS" -T "$tmp_file" && curl -u "$NC_USER:$NC_PASS" "$NC_HOST/ocs/v2.php/apps/files_sharing/api/v1/shares" -H 'content-type: application/json' -H 'accept: application/json, text/plain, */*' -H 'OCS-APIRequest: true' --data-raw "{\"path\":\"${NC_FOLDER_PATH}/$cloudname\",\"shareType\":3,\"attributes\":\"[]\"}" | sed -nE 's|.*"url":"([^"]*)".*|\1|p' | sed 's/\\//g' | wl-copy && info "com.github.davidmhewitt.clipped" "2000" "uploaded and copied link to clipboard" && return 0
+			info "" "2000" "Unable to upload to Nextcloud,moved the file from temp to your home folder as <unix_timestamp>.mp4" && mv "$tmp_file" "$HOME/$(date +%s).mp4" && return 1
+			;;
+
+		*discord)
+			#shellcheck disable=SC1091
+			. "$HOME"/.secrets
+			base_url="https://discord.com/api/v10"
 
 			channel=$(curl -s "$base_url/guilds/$SERVER_ID/channels" -H "Authorization: $TOKEN" | tr '{}' '\n' | sed -nE 's|.*"id":"([^"]*)".*last_message_id.*"name":"([^"]*)".*|\1\t\2|p' | menu "Select Channel: ")
 			channel_name=$(printf "%s" "$channel" | cut -f2)
