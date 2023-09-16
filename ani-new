@@ -10,7 +10,7 @@ down() {
 	[ "$choice" = "next mirror" ] && return 0
 	info_$os "Downloading $title" "downloader"
 	case $2 in
-		*m3u*) $terminal hls -n 300 -ro "$download_dir/$title" "$2" || (error_$os "Downloading failed $title" && exit 0) ;;
+		*m3u*) $terminal hls -ro "$download_dir/$title" "$2" || (error_$os "Downloading failed $title" && exit 0) ;;
 		*) $terminal aria2c -U "$agent" --check-certificate=false -d "$download_dir" --summary-interval=0 -x 16 -s 16 --referer="$1" "$2" -o "$title.mp4" --download-result=hide || (error_$os "Downloading failed $title" && exit 0) ;;
 	esac
 	info_$os "Episode Downloaded $title"
@@ -54,7 +54,7 @@ case $(uname -o) in
 	*ndroid*)
 		os="droid"
 		download_dir="/sdcard"
-		script_dir=""
+		script_dir="$HOME/.shortcuts"
 		;;
 	*)
 		os="linux"

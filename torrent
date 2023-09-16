@@ -14,7 +14,7 @@ down() {
 
 if [ "$(uname -o)" = "Android" ]; then
 	os="droid"
-	script_dir=""
+	script_dir="$HOME/.shortcuts"
 else
 	os="linux"
 	script_dir="$HOME/repos_scripts"

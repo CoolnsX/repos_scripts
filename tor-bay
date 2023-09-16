@@ -15,7 +15,7 @@ display() {
 case $(uname -o) in
 	*ndroid*)
 		os="droid"
-		script_dir=""
+		script_dir="$HOME/.shortcuts"
 		;;
 	*)
 		os="linux"
