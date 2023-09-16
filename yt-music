@@ -82,8 +82,9 @@ get_music_list(){
 	\"isAudioOnly\": true,
 	\"context\": $(cat "$logdir/context")
 	}"
-	get_data "next" "$json_next" | tee "$logdir/extract_continuation" | sed 's/playlistPanelVideoRenderer/\n/g' | sed -nE 's_.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*_\1 - \2\t\3_p' | sed '$d' >> "$logdir/next"
-	sed -nE 's|.*nextRadioContinuationData":\{([^,]*).*|\1,|p' "$logdir/extract_continuation" > "$logdir/continue_token"
+	next_data=$(get_data "next" "$json_next" | sed 's/playlistPanelVideoRenderer/\n/g;s/hasPersistentPlaylistPanel/\n/g' | sed -nE 's|.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*|\1 - \2\t\3|p;s|.*nextRadioContinuationData":\{([^,]*).*|\1,|p')
+	printf '%s' "$next_data" | sed -e "$(cut -f2 "/tmp/yt-music/next" | sed 's|^|/|g;s|$|/d|g')" -e '/"continuation"/d' >> "$logdir/next"
+	printf '%s' "$next_data" | sed -n '/"continuation"/p' > "$logdir/continue_token"
 }
 
 get_song_lyrics() {
@@ -125,17 +126,17 @@ loop() {
 	trap cleanup_shit INT HUP TERM
 	while :; do
 		sleep 4
-		pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^\.]*).*_\1_p')
+		pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - "$socket" | sed -nE 's_.*data":([^\.]*).*_\1_p')
 		while [ -n "$pos" ]; do
-			pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^\.]*).*_\1_p')
-			[ -z "$1" ] || printf "\033[2K\rnext music in $pos second(s)%s" "$(echo '{ "command": ["get_property", "pause"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^,]*).*_\1_p' | sh && printf " (paused)")"
+			pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - "$socket"  | sed -nE 's_.*data":([^\.]*).*_\1_p')
+			[ -z "$1" ] || printf "\033[2K\rnext music in $pos second(s)%s" "$(echo '{ "command": ["get_property", "pause"]}' | socat - "$socket" | sed -nE 's_.*data":([^,]*).*_\1_p' | sh && printf " (paused)")"
 			[ -z "$pos" ] && printf "\033[2K\r\n"
 			sleep 2
 		done
-		pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - /tmp/mpvsocket | sed -nE 's_.*data":([^\.]*).*_\1_p')
-		pgrep -f "mpvsocket" >/dev/null || cleanup_shit
+		pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - "$socket" | sed -nE 's_.*data":([^\.]*).*_\1_p')
+		pgrep -f "$socket" >/dev/null || cleanup_shit
 		#shellcheck disable=SC2030,SC2031
-		[ -z "$pos" ] && i=$(cat "$logdir/counter") && : $((i+=1)) && pgrep -f "mpvsocket" >/dev/null && [ -n "$(cat "$logdir/next")" ] && play "$(sed -n "$((i+=1))p" "$logdir/next")" "$1" && printf '%s' "$i" > "$logdir/counter"
+		[ -z "$pos" ] && i=$(cat "$logdir/counter") && : $((i+=1)) && pgrep -f "$socket" >/dev/null && [ -n "$(cat "$logdir/next")" ] && play "$(sed -n "$((i+=1))p" "$logdir/next")" "$1" && printf '%s' "$i" > "$logdir/counter"
 		tail -1 "$logdir/next" | grep -q "$(cut -d'>' -f2 < "$logdir/current")" && get_music_list
 	done
 }
@@ -184,20 +185,23 @@ play() {
 	fi
 
 	curl -s "https://i.ytimg.com/vi/$id/hqdefault.jpg" -o - | convert - -crop 270x270+105+45 "$logdir/default.jpg" && notify-send -h "string:x-canonical-private-synchronous:${0##*/}" -i "$logdir/default.jpg" "Now Playing" "$title" -t 5000
-	pgrep -f "mpvsocket" >/dev/null || (setsid -f mpv --really-quiet --input-ipc-server=/tmp/mpvsocket --idle --quiet >/dev/null && sleep 1)
-	echo "{ \"command\": [\"loadfile\", \"$audio_url\", \"replace\"] }" | socat - /tmp/mpvsocket
+	pgrep -f "$socket" >/dev/null || (setsid -f mpv --really-quiet --input-ipc-server="$socket" --idle --quiet >/dev/null && sleep 1)
+	echo "{ \"command\": [\"loadfile\", \"$audio_url\", \"replace\"] }" | socat - "$socket"
 	printf "currently playing : %s >%s\n" "$title" "$id" >"$logdir/current"
+
+	#self explainatory
+	get_song_lyrics "$id" &
 
 	#next songs data
 	[ -n "$3" ] && get_music_list &
-	get_song_lyrics "$id" &
-	pgrep -f "yt-music loop" >/dev/null || setsid -f "$0" loop
+
+	pgrep -f "${0##*/} loop" >/dev/null || setsid -f "$0" loop
 }
 
 search_play() {
 	#run this if u r starting the script first time like this
 	#call this by "script-name" "search_play" "search_query"
-	[ -z "$1" ] && query=$(: | menu "Yt-music [Search]:") || query="$1"
+	[ -z "$1" ] && query=$(: | menu "Yt-music [Search]:" "" "60") || query="$1"
 	[ -z "$query" ] && notify-send "Err.. Search query empty" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && exit 1
 
 	#storing context
@@ -225,7 +229,7 @@ play_next() {
 	#call this by script-name "play_next" for playing next song immediately
 	#or add "menu" after "play_next" to show menu for selecting and playing next song immediately
 	#like this script-name "play_next" "menu"
-	pgrep -f "mpvsocket" || return 0
+	pgrep -f "$socket" || return 0
 	i=$(cat "$logdir/counter")
 	if [ -z "$1" ]; then 
 		: $((i+=1))
@@ -234,19 +238,21 @@ play_next() {
 	else
 		notify-send -h "string:x-canonical-private-synchronous:${0##*/}" -i "$logdir/default.jpg" "$(cut -d">" -f1 "$logdir/current" | tr ':' '\n')"
 		#shellcheck disable=SC2031
-		next=$(nl -n'ln' -v0 "$logdir/next" | sed "s/^$i /& /" | menu "YT-music [play-next]: ")
+		next=$(nl -n'ln' -v0 "$logdir/next" | sed "s/^$i /& /" | menu "YT-music [play-next]: " "$i")
 		[ -z "$next" ] && return 0
 		i=$(printf '%s' "$next" | sed 's///g' | cut -f1 | tr -d ' ')
 		play "$(printf '%s' "$next" | cut -f2-)" "verbose"
 	fi
 	printf '%s' "$i" > "$logdir/counter"
+	tail -1 "$logdir/next" | grep -q "$(cut -d'>' -f2 < "$logdir/current")" && get_music_list
 }
 
 menu() {
-	bemenu --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 3 -p "$1" -l 26
+	bemenu --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 3 -p "$1" -l 25 -I "${2:-0}" -P ">>" 
 }
 
-logdir="/tmp/yt-music"
+logdir="/tmp/${0##*/}"
+socket="$logdir/${0##*/}-mpvsocket"
 base_url="https://music.youtube.com"
 [ -d "$logdir" ] || mkdir "$logdir"
 cookie="$logdir/cookies"

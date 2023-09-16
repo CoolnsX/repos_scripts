@@ -5,7 +5,7 @@ menu_droid() {
 }
 
 menu_linux() {
-	bemenu --fn 'Cascadia Mono 15' -i -c -W "0.${3:-6}" -B 3 -l 25 -p "$1"
+	bemenu --fn 'Cascadia Mono 15' -i -c -W "0.${3:-6}" -B 3 -l 25 -p "$1" --fixed-height 25
 }
 
 search_droid() {

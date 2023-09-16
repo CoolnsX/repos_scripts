@@ -8,7 +8,7 @@ info() {
 }
 
 menu() {
-	bemenu --fn 'IBM Plex Sans 15' -i -c -W "0.${2:-5}" -B 3 -p "$1" -l 26
+	bemenu --fn 'IBM Plex Sans 15' -i -c -W "0.${2:-5}" -B 3 -p "$1" -l 26 --accept-single
 }
 
 compress() {
@@ -36,13 +36,16 @@ record() {
 	#shellcheck disable=SC2034
 	speaker="$(pactl list sources | grep -B1 'node.nick = "Speaker + Headphones"' | sed -nE 's|.*node.name = "([^"]*)"|\1.monitor|p')" #It is called in eval on line 9
 	source=$(printf "screen only\nspeaker\nmic" | menu "Audio Source:" "3")
-	monitor=$(hyprctl monitors | sed -nE 's|Monitor ([^ ]*).*|\1|p')
-	[ "$(printf '%s\n' "$monitor" | wc -l)" -gt 1 ] && monitor=$(printf '%s' "$monitor" | menu "Choose Monitor:" "3")
-	#shellcheck disable=SC2089
+
 	[ -z "$source" ] && info "" "2000" "No option Selected" && return 0
+
+	monitor=$(hyprctl monitors | sed -nE 's|Monitor ([^ ]*).*|\1|p' | menu "Choose Monitor:" "3")
+
+	[ -z "$monitor" ] && info "" "2000" "No option Selected" && return 0
+
 	[ "$source" != "screen only" ] && pactl set-default-source "$(eval "printf \$$source")" && arg=-a
 	#shellcheck disable=SC2086,SC2090
-	info "simplescreenrecorder" "1000" "Select Region" "Tap/Click to select full" && setsid -f wf-recorder -x yuv420p -f /tmp/screenrecord.mp4 --output eDP-1 $arg -g "$(slurp)" >/dev/null 2>&1
+	info "simplescreenrecorder" "1000" "Select Region" "Tap/Click to select full" && setsid -f wf-recorder -x yuv420p -f /tmp/screenrecord.mp4 --output "$monitor" $arg -g "$(slurp)" >/dev/null 2>&1
 	info "simplescreenrecorder" "700" "Recording Started" "Capturing $monitor($source)"
 }
 
