@@ -5,7 +5,7 @@ menu_droid() {
 }
 
 menu_linux() {
-	bemenu --fn 'Cascadia Mono 15' -i -c -W "0.${3:-6}" -B 3 -l 25 -p "$1" --fixed-height 25
+	bemenu --fn 'Cascadia Mono 15' -i -c -W "0.${3:-6}" -B 3 -l 25 -p "$1"
 }
 
 search_droid() {
@@ -45,5 +45,5 @@ player_droid() {
 }
 
 player_linux() {
-	setsid -f mpv "$1" --force-media-title="$2"
+	mpv "$1" --force-media-title="$2"
 }
