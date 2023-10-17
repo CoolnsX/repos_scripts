@@ -119,26 +119,24 @@ get_song_lyrics() {
 }
 
 loop() {
-	#this function does exactly what it says, it should run in the background, u can even put this in startup
-	#it plays next song after the current song get played completely,it does nothing until u run the search_play function then this script kicks in
-	#call it by script-name "loop" "print" for printing the remaining time in terminal
-	#call it by script-name "loop" for anonymously
+	#this function does exactly what it says, it should run in the background
+	#it plays next song after the current song get played completely,it does nothing until u run the search_play function then this code kicks in
 	trap cleanup_shit INT HUP TERM
-	while :; do
-		sleep 4
-		pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - "$socket" | sed -nE 's_.*data":([^\.]*).*_\1_p')
-		while [ -n "$pos" ]; do
-			pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - "$socket"  | sed -nE 's_.*data":([^\.]*).*_\1_p')
-			[ -z "$1" ] || printf "\033[2K\rnext music in $pos second(s)%s" "$(echo '{ "command": ["get_property", "pause"]}' | socat - "$socket" | sed -nE 's_.*data":([^,]*).*_\1_p' | sh && printf " (paused)")"
-			[ -z "$pos" ] && printf "\033[2K\r\n"
-			sleep 2
-		done
-		pos=$(echo '{ "command": ["get_property", "time-remaining"]}' | socat - "$socket" | sed -nE 's_.*data":([^\.]*).*_\1_p')
-		pgrep -f "$socket" >/dev/null || cleanup_shit
-		#shellcheck disable=SC2030,SC2031
-		[ -z "$pos" ] && i=$(cat "$logdir/counter") && : $((i+=1)) && pgrep -f "$socket" >/dev/null && [ -n "$(cat "$logdir/next")" ] && play "$(sed -n "$((i+=1))p" "$logdir/next")" "$1" && printf '%s' "$i" > "$logdir/counter"
-		tail -1 "$logdir/next" | grep -q "$(cut -d'>' -f2 < "$logdir/current")" && get_music_list
+	socat - "UNIX-CONNECT:$socket" | while read -r event;do
+		#look for eof event
+		if printf "%s" "$event" | grep -q "end-file.*eof";then
+			i=$(cat "$logdir/counter")
+			: $((i+=1))
+			pgrep -f "$socket" >/dev/null || continue
+			[ -n "$(cat "$logdir/next")" ]
+			#shellcheck disable=SC2030
+			play "$(sed -n "$((i+=1))p" "$logdir/next")" "$1"
+			#shellcheck disable=SC2031
+			printf '%s' "$i" > "$logdir/counter"
+			tail -1 "$logdir/next" | grep -q "$(cut -d'>' -f2 < "$logdir/current")" && get_music_list
+		fi
 	done
+	cleanup_shit
 }
 
 play() {
@@ -151,7 +149,7 @@ play() {
 
 	#get song's audio url
 	random_no=$(head /dev/urandom | tr -dc '0-4' | cut -c1)
-	andy_yt_ver="6.16.52"
+	andy_yt_ver="6.22.51"
 	extra_up=$((random_no >= 2))
 	droid_agent="com.google.android.apps.youtube.music/$andy_yt_ver (Linux; U; Android 1$random_no) gzip"
 	json="{
@@ -205,7 +203,7 @@ search_play() {
 	[ -z "$query" ] && notify-send "Err.. Search query empty" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && exit 1
 
 	#storing context
-	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20230731.00.00"}}' >"$logdir/context"
+	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20231010.05.00"}}' >"$logdir/context"
 
 	#json for song search
 	json_search="{

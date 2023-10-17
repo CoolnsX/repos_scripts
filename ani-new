@@ -30,7 +30,7 @@ case $(uname -o) in
 	*)
 		os="linux"
 		download_dir="$HOME/Downloads"
-		terminal="${TERMINAL:-foot} -e"
+		[ -t 1 ] || terminal="${TERMINAL:-foot} -e"
 		script_dir="$HOME/repos_scripts"
 		;;
 esac
@@ -49,6 +49,8 @@ printf "%s\n" "$url" | while read -r id title; do
 	ep_no=$(printf "%s" "$title" | sed 's/.*Episode //g')
 
 	info_$os "Loading Episode $title.."
+	[ -n "$debug" ] && printf "\n\033[1;36m title\033[0m : %s\n" "$title"
+
 	#shellcheck disable=SC2016
 	data=$(allanime_curl "variables={\"showId\":\"$id\",\"translationType\":\"sub\",\"countryOrigin\":\"ALL\",\"episodeString\":\"$ep_no\"}" 'query=query ($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episodeString: String!) { episode( showId: $showId translationType: $translationType episodeString: $episodeString ) { episodeString sourceUrls }}' | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":"--([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
 	info_$os "Fetching Embed links"
@@ -56,21 +58,23 @@ printf "%s\n" "$url" | while read -r id title; do
 	printf 'dropbox\tSak\nwetransfer\tKir\nsharepoint\tS-mp4\ngogoplay\tLuf-mp4\n' | while read -r provider_name provider_regex; do
 		info_$os "Fetching $provider_name links"
 		provider_id="$(decrypt_allanime "$(printf "%s" "$data" | sed -n "/$provider_regex :/p" | head -1 | cut -d':' -f2)" | sed "s/\/clock/\/clock\.json/")"
-		[ -z "$provider_id" ] && return 0
+		[ -z "$provider_id" ] && continue
 		provider_video=$(curl -s "https://${domain}${provider_id}" | sed 's|},{|\n|g' | sed -nE 's|.*link":"([^"]*)".*"resolutionStr":"([^"]*)".*|\1|p;s|.*hls","url":"([^"]*)".*"hardsub_lang":"en-US".*|\1|p' | head -1)
-		[ -z "$provider_video" ] && return 0
-		[ -n "$debug" ] && printf "\033[1;32m %s\033[0m : %s\n" "$provider_name" "$provider_video" && return 0
+		[ -z "$provider_video" ] && continue
+		[ -n "$debug" ] && printf "\033[1;32m %s\033[0m : %s\n" "$provider_name" "$provider_video" && continue
 		info_$os "$provider_name links fetched.."
 		choice=$(printf "stream\ndownload\ncast\nnext_mirror\nnext_anime" | menu_$os "??" '' "2")
-		[ -z "$choice" ] && exit 0
+		[ -z "$choice" ] && break
 		case $choice in
 			stream)
 				info_$os "opening $title" "mpv"
 				player_$os "$provider_video" "$title"
+				break
 				;;
 			cast)
 				info_$os "casting $title" "podcast"
 				catt cast "$provider_video"
+				break
 				;;
 			*mirror)
 				continue
@@ -78,16 +82,12 @@ printf "%s\n" "$url" | while read -r id title; do
 			download)
 				info_$os "Downloading $title" "downloader"
 				case $provider_video in
-					*m3u*) $terminal hls -ro "$download_dir/$title" "$provider_video" || error_$os "Downloading failed $title" && break ;;
-					*) $terminal aria2c -U "$agent" --check-certificate=false -d "$download_dir" --summary-interval=0 -x 16 -s 16 --referer="https://$domain" "$provider_video" -o "$title.mp4" --download-result=hide || error_$os "Downloading failed $title" && break ;;
+					*m3u*) $terminal hls -ro "$download_dir/$title" "$provider_video" || error_$os "Downloading failed $title" ;;
+					*) $terminal aria2c -U "$agent" --check-certificate=false -d "$download_dir" --summary-interval=0 -x 16 -s 16 --referer="https://$domain" "$provider_video" -o "$title.mp4" --download-result=hide || error_$os "Downloading failed $title" ;;
 				esac
 				info_$os "Episode Downloaded $title"
 				;;
-			*)
-				break
-				;;
 		esac
+		break
 	done
-
-	[ -z "$debug" ] && error_$os "no more mirror links..sorry"
 done
