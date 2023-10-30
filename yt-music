@@ -1,5 +1,7 @@
 #!/bin/sh
 
+#shellcheck disable=SC2030,SC2031,SC2059
+
 help() {
 	case $1 in
 		search*)
@@ -55,6 +57,7 @@ help() {
 }
 
 cleanup_shit(){
+	pkill -f "nc -U $discord_ipc" > /dev/null
 	rm -rdf "$logdir"
 	exit 0
 }
@@ -129,9 +132,7 @@ loop() {
 			: $((i+=1))
 			pgrep -f "$socket" >/dev/null || continue
 			[ -n "$(cat "$logdir/next")" ]
-			#shellcheck disable=SC2030
 			play "$(sed -n "$((i+=1))p" "$logdir/next")" "$1"
-			#shellcheck disable=SC2031
 			printf '%s' "$i" > "$logdir/counter"
 			tail -1 "$logdir/next" | grep -q "$(cut -d'>' -f2 < "$logdir/current")" && get_music_list
 		fi
@@ -139,10 +140,50 @@ loop() {
 	cleanup_shit
 }
 
+#discord rich presence written in a nut-shell code
+set_activity() {
+	op=0
+	handshake='{"v":1,"client_id":"'$presence_client_id'"}'
+	datalen=${#handshake}
+	for i in $(seq 0 3); do
+		byte=$(((op >> (i * 8)) & 255))
+		printf "\\$(printf "%03o" "$byte")"
+	done
+	for i in $(seq 0 3); do
+		byte=$(((datalen >> (i * 8)) & 255))
+		printf "\\$(printf "%03o" "$byte")"
+	done
+	printf "%s" "$handshake"
+	op=1
+	datalen=${#1}
+	for i in $(seq 0 3); do
+		byte=$(((op >> (i * 8)) & 255))
+		printf "\\$(printf "%03o" "$byte")"
+	done
+	for i in $(seq 0 3); do
+		byte=$(((datalen >> (i * 8)) & 255))
+		printf "\\$(printf "%03o" "$byte")"
+	done
+	printf "%s" "$1"
+}
+
+update_rich_presence() {
+	pkill -f "nc -U $discord_ipc" > /dev/null
+	sleep 2
+	title=$1
+	id=$2
+	start=$(date +%s)
+	dur=$(printf '{ "command": ["get_property", "duration"] }\n' | socat - "$socket" | sed -nE 's|.*data":([^.]*).*|\1|p')
+	payload='{"cmd": "SET_ACTIVITY", "args": {"activity": {"details": "'$(printf "%s" "$title" | sed 's|[^-]*$||;s|-$||;s| $||;s|^ ||')'", "state": "'$(printf "%s" "$title" | sed 's_.* - __;s| $||')'", "timestamps": {"start": '"$start"',"end": '"$((start + dur))"'}, "assets": {"large_image": "https://i.ytimg.com/vi/'$id'/mqdefault.jpg","large_text":"Checkmate Premium Users"}}}, "nonce": "1"}'
+
+	#with buttons, but this MF is not working --
+	#payload='{"cmd": "SET_ACTIVITY", "args": {"activity": {"details": "'$(printf "%s" "$title" | sed 's|[^-]*$||;s|-$||;s| $||;s|^ ||')'", "state": "'$(printf "%s" "$title" | sed 's_.* - __;s| $||')'", "timestamps": {"start": '"$(date +%s)"'}, "assets": {"large_image": "https://i.ytimg.com/vi/'$id'/mqdefault.jpg","large_text":"Checkmate Premium Users","buttons": [{"label":"Listen Here", "url": "https://www.youtube.com/watch?v='$id'"}]}}}, "nonce": "1"}'
+	set_activity "$payload" | nc -U "$discord_ipc"
+}
+
 play() {
 	#this function does all the heavy lifting of extracting url from given videoId
 	#it's also callable, u can use this function to play ur custom youtube URLs
-	#call it by script-name "play" "valid_youtube_id_or_url"
 	title=$(printf "%s" "$1" | cut -f1)
 	id=$(printf "%s" "$1" | cut -f2 | cut -d"=" -f2 | cut -d"/" -f4 | cut -d'&' -f1)
 	[ -z "$id" ] && printf "[ youtube ] Invalid link\n" && exit 1
@@ -184,11 +225,14 @@ play() {
 
 	curl -s "https://i.ytimg.com/vi/$id/hqdefault.jpg" -o - | convert - -crop 270x270+105+45 "$logdir/default.jpg" && notify-send -h "string:x-canonical-private-synchronous:${0##*/}" -i "$logdir/default.jpg" "Now Playing" "$title" -t 5000
 	pgrep -f "$socket" >/dev/null || (setsid -f mpv --really-quiet --input-ipc-server="$socket" --idle --quiet >/dev/null && sleep 1)
-	echo "{ \"command\": [\"loadfile\", \"$audio_url\", \"replace\"] }" | socat - "$socket"
+	printf '{"command":["loadfile","%s","replace"]}\n' "$audio_url" | socat - "$socket"
 	printf "currently playing : %s >%s\n" "$title" "$id" >"$logdir/current"
 
 	#self explainatory
 	get_song_lyrics "$id" &
+
+	#update the discord rich presence, requires client id
+	update_rich_presence "$title" "$id" &
 
 	#next songs data
 	[ -n "$3" ] && get_music_list &
@@ -198,28 +242,36 @@ play() {
 
 search_play() {
 	#run this if u r starting the script first time like this
-	#call this by "script-name" "search_play" "search_query"
+	#call this by "script-name" "search_play" [ search_query | youtube_id by prefixing with ID:<youtube_id> | youtube url ]
 	[ -z "$1" ] && query=$(: | menu "Yt-music [Search]:" "" "60") || query="$1"
 	[ -z "$query" ] && notify-send "Err.. Search query empty" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && exit 1
 
 	#storing context
 	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20231010.05.00"}}' >"$logdir/context"
 
+	if ! (printf '%s' "$query" | grep -q 'https:' || printf '%s' "$query" | grep -q 'ID:');then
 	#json for song search
-	json_search="{
-	\"context\" : $(cat "$logdir/context"),
-	\"query\": \"$query\",
-	\"params\": \"EgWKAQIIAWoKEAMQBBAJEAoQBQ%3D%3D\"
-	}"
+		json_search="{
+		\"context\" : $(cat "$logdir/context"),
+		\"query\": \"$query\",
+		\"params\": \"EgWKAQIIAWoKEAMQBBAJEAoQBQ%3D%3D\"
+		}"
+
+		res=$(get_data "search" "$json_search" "$agent" | sed 's/watchEndpoint"/\n/g' | sed -nE 's_.*videoId":"([^"]*)",.*label":"Play ([^"]*)".*_\2\t\1_p' | menu "Yt-music [Play]:")
+	else
+		id=$(printf '%s' "$query" | cut -d':' -f2 | cut -d"=" -f2 | cut -d"/" -f4 | cut -d'&' -f1)
+		title=$(curl -s "https://www.youtube.com/oembed?url=http://www.youtube.com/watch?v=$id&format=xml" | sed -nE 's|.*<title>([^<]*)<.*|\1|p' | sed 's|&amp;|\&|g')
+		res=$(printf '%s\t%s' "$title" "$id")
+
+	fi
 
 	#extracting your cookies so that the song list are according to your taste
 	get_cookies
-	printf "0" > "$logdir/counter"
 	printf '' > "$logdir/next"
-	rm -f "$logdir/continue_token"
-	res=$(get_data "search" "$json_search" "$agent" | sed 's/watchEndpoint"/\n/g' | sed -nE 's_.*videoId":"([^"]*)",.*label":"Play ([^"]*)".*_\2\t\1_p' | menu "Yt-music [Play]:")
 	printf "%s\n" "$res" >> "$logdir/next"
 	printf "%s" "$res" | cut -f2 > "$logdir/start"
+	printf "0" > "$logdir/counter"
+	rm -f "$logdir/continue_token"
 	[ -z "$res" ] || play "$res" "verbose" "1"
 }
 
@@ -231,11 +283,9 @@ play_next() {
 	i=$(cat "$logdir/counter")
 	if [ -z "$1" ]; then 
 		: $((i+=1))
-		#shellcheck disable=SC2030
 		play "$(sed -n "$((i+=1))p" "$logdir/next")" "$1"
 	else
 		notify-send -h "string:x-canonical-private-synchronous:${0##*/}" -i "$logdir/default.jpg" "$(cut -d">" -f1 "$logdir/current" | tr ':' '\n')"
-		#shellcheck disable=SC2031
 		next=$(nl -n'ln' -v0 "$logdir/next" | sed "s/^$i /& /" | menu "YT-music [play-next]: " "$i")
 		[ -z "$next" ] && return 0
 		i=$(printf '%s' "$next" | sed 's///g' | cut -f1 | tr -d ' ')
@@ -251,6 +301,8 @@ menu() {
 
 logdir="/tmp/${0##*/}"
 socket="$logdir/${0##*/}-mpvsocket"
+discord_ipc="${XDG_RUNTIME_DIR}/discord-ipc-0"
+presence_client_id="1165951947245879316"
 base_url="https://music.youtube.com"
 [ -d "$logdir" ] || mkdir "$logdir"
 cookie="$logdir/cookies"

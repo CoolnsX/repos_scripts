@@ -44,7 +44,7 @@ record() {
 	[ -z "$monitor" ] && info "" "2000" "No option Selected" && return 0
 
 	[ "$source" != "screen only" ] && pactl set-default-source "$(eval "printf \$$source")" && arg=-a
-	#shellcheck disable=SC2086,SC2090
+	#shellcheck disable=SC2086
 	info "simplescreenrecorder" "1000" "Select Region" "Tap/Click to select full" && setsid -f wf-recorder -x yuv420p -f /tmp/screenrecord.mp4 --output "$monitor" $arg -g "$(slurp)" >/dev/null 2>&1
 	info "simplescreenrecorder" "700" "Recording Started" "Capturing $monitor($source)"
 }
@@ -72,12 +72,12 @@ stop() {
 
 			#upload to nextcloud instance, universal code
 			info "nextcloud" "10000" "Uploading to NextCloud"
-			curl -s "$NC_HOST/remote.php/dav/files/${NC_USER}${NC_FOLDER_PATH}/$cloudname" -H "Authorization: Basic $NC_AUTH" -T "$tmp_file" || (info "" "2000" "Unable to upload to Nextcloud,moved the file from temp to your home folder as $cloudname" && mv "$tmp_file" "$HOME/$cloudname" && return 1)
+			curl "$NC_HOST/remote.php/dav/files/${NC_USER}${NC_FOLDER_PATH}/$cloudname" -b "$NC_COOKIES" -H "Requesttoken: $NC_TOKEN" -T "$tmp_file" || (info "" "2000" "Unable to upload to Nextcloud,moved the file from temp to your home folder as $cloudname" && mv "$tmp_file" "$HOME/$cloudname" && return 1)
 			info "nextcloud" "" "Getting File Id"
-			file_id=$(curl -s "$NC_HOST/remote.php/dav/files/${NC_USER}${NC_FOLDER_PATH}" -X 'PROPFIND' -H "Authorization: Basic $NC_AUTH" --data-raw '<?xml version="1.0"?><d:propfind  xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns" xmlns:ocs="http://open-collaboration-services.org/ns"><d:prop><oc:fileid /><nc:system-tags /></d:prop></d:propfind>' | sed 's|d:response|\n|g' | sed -nE "s|.*<d:href>.*$cloudname.*<oc:fileid>([^<]*).*|\1|p" | head -1)
+			file_id=$(curl -s "$NC_HOST/remote.php/dav/files/${NC_USER}${NC_FOLDER_PATH}" -X 'PROPFIND' -b "$NC_COOKIES" -H "Requesttoken: $NC_TOKEN" --data-raw '<?xml version="1.0"?><d:propfind  xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns" xmlns:ocs="http://open-collaboration-services.org/ns"><d:prop><oc:fileid /><nc:system-tags /></d:prop></d:propfind>' | sed 's|d:response|\n|g' | sed -nE "s|.*<d:href>.*$cloudname.*<oc:fileid>([^<]*).*|\1|p" | head -1)
 			[ "$file_id" = "$NC_FOLDER_ID" ] && file_id=""
 			info "nextcloud" "10000" "Setting Retention Policy & Generating Share Link"
-			curl -sX PUT "$NC_HOST/remote.php/dav/systemtags-relations/files/$file_id/1" -H "Authorization: Basic $NC_AUTH" -: -s -H "Authorization: Basic $NC_AUTH" "$NC_HOST/ocs/v2.php/apps/files_sharing/api/v1/shares" -H 'content-type: application/json' -H 'accept: application/json, text/plain, */*' -H 'OCS-APIRequest: true' --data-raw "{\"path\":\"${NC_FOLDER_PATH}/$cloudname\",\"shareType\":3,\"attributes\":\"[]\"}" | sed -nE 's|.*"url":"([^"]*)".*|\1|p' | sed 's/\\//g' | wl-copy && info "com.github.davidmhewitt.clipped" "2000" "Share Link Created and copied to clipboard"
+			curl -sX PUT "$NC_HOST/remote.php/dav/systemtags-relations/files/$file_id/1" -b "$NC_COOKIES" -H "Requesttoken: $NC_TOKEN" -: -s -b "$NC_COOKIES" -H "Requesttoken: $NC_TOKEN" "$NC_HOST/ocs/v2.php/apps/files_sharing/api/v1/shares" -H 'content-type: application/json' -H 'accept: application/json, text/plain, */*' -H 'OCS-APIRequest: true' --data-raw "{\"path\":\"${NC_FOLDER_PATH}/$cloudname\",\"shareType\":3,\"attributes\":\"[]\"}" | sed -nE 's|.*"url":"([^"]*)".*|\1|p' | sed 's/\\//g' | wl-copy && info "com.github.davidmhewitt.clipped" "2000" "Share Link Created and copied to clipboard"
 			;;
 
 		*discord)
