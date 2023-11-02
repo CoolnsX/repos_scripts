@@ -56,17 +56,16 @@ help() {
 	exit 0
 }
 
-cleanup_shit(){
-	pkill -f "nc -U $discord_ipc" > /dev/null
+cleanup_shit() {
+	pkill -f "nc -U $discord_ipc" >/dev/null
 	rm -rdf "$logdir"
 	exit 0
 }
 
 get_cookies() {
-	for i in $(sqlite3 "$HOME/.config/google-chrome/Default/Cookies" "SELECT name,REPLACE(base64(SUBSTR(encrypted_value,4)),CHAR(10),'') FROM cookies WHERE host_key='.youtube.com';")
-	do 
-		printf "%s=%s; " "$(printf '%s' "$i" | cut -d'|' -f1)" "$(printf '%s' "$i" | cut -d'|' -f2 | base64 -d | openssl enc -d -aes-128-cbc -K fd621fe5a2b402539dfa147ca9272778 -iv 20202020202020202020202020202020)" 
-	done > "$cookie"
+	for i in $(sqlite3 "$HOME/.config/google-chrome/Default/Cookies" "SELECT name,REPLACE(base64(SUBSTR(encrypted_value,4)),CHAR(10),'') FROM cookies WHERE host_key='.youtube.com';"); do
+		printf "%s=%s; " "$(printf '%s' "$i" | cut -d'|' -f1)" "$(printf '%s' "$i" | cut -d'|' -f2 | base64 -d | openssl enc -d -aes-128-cbc -K fd621fe5a2b402539dfa147ca9272778 -iv 20202020202020202020202020202020)"
+	done >"$cookie"
 }
 
 get_data() {
@@ -74,7 +73,7 @@ get_data() {
 	curl -X POST -A "${3:-$agent}" -s "$base_url/youtubei/v1/$1?key=${4:-AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30}&prettyPrint=false" -H "content-type:application/json" -d "$2" -b "$(cat "$cookie")" -e "$base_url" -H "$sapisid_header"
 }
 
-get_music_list(){
+get_music_list() {
 	json_next="{
 	\"enablePersistentPlaylistPanel\": true,
 	\"tunerSettingValue\": \"AUTOMIX_SETTING_NORMAL\",
@@ -86,8 +85,8 @@ get_music_list(){
 	\"context\": $(cat "$logdir/context")
 	}"
 	next_data=$(get_data "next" "$json_next" | sed 's/playlistPanelVideoRenderer/\n/g;s/hasPersistentPlaylistPanel/\n/g' | sed -nE 's|.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*|\1 - \2\t\3|p;s|.*nextRadioContinuationData":\{([^,]*).*|\1,|p')
-	printf '%s' "$next_data" | sed -e "$(cut -f2 "/tmp/yt-music/next" | sed 's|^|/|g;s|$|/d|g')" -e '/"continuation"/d' >> "$logdir/next"
-	printf '%s' "$next_data" | sed -n '/"continuation"/p' > "$logdir/continue_token"
+	printf '%s' "$next_data" | sed -e "$(cut -f2 "/tmp/yt-music/next" | sed 's|^|/|g;s|$|/d|g')" -e '/"continuation"/d' >>"$logdir/next"
+	printf '%s' "$next_data" | sed -n '/"continuation"/p' >"$logdir/continue_token"
 }
 
 get_song_lyrics() {
@@ -108,7 +107,7 @@ get_song_lyrics() {
 		    \"client\": {
 		      \"clientName\": \"ANDROID_MUSIC\",
 		      \"clientVersion\": \"$andy_yt_ver\",
-		      \"androidSdkVersion\": $(( random_no + extra_up + 29 )),
+		      \"androidSdkVersion\": $((random_no + extra_up + 29)),
 		      \"userAgent\": \"$droid_agent\",
 		      \"hl\": \"en\",
 		      \"timeZone\": \"UTC\",
@@ -117,7 +116,7 @@ get_song_lyrics() {
 		  },
 		  \"browseId\": \"$browseId\"
   		}"
-		get_data "browse" "$json_lyrics" "$droid_agent" "AIzaSyAOghZGza2MQSZkY_zfZ370N-PUdXEo8AI" | sed 's/metadata"/\n/g' | sed -nE 's|.*lyricLine":"([^"]*)","cueRange".*"endTimeMilliseconds":"([^"]*)".*|\2\t\1|p' > "$logdir/lyrics"
+		get_data "browse" "$json_lyrics" "$droid_agent" "AIzaSyAOghZGza2MQSZkY_zfZ370N-PUdXEo8AI" | sed 's/metadata"/\n/g' | sed -nE 's|.*lyricLine":"([^"]*)","cueRange".*"endTimeMilliseconds":"([^"]*)".*|\2\t\1|p' >"$logdir/lyrics"
 	fi
 }
 
@@ -125,16 +124,16 @@ loop() {
 	#this function does exactly what it says, it should run in the background
 	#it plays next song after the current song get played completely,it does nothing until u run the search_play function then this code kicks in
 	trap cleanup_shit INT HUP TERM
-	socat - "UNIX-CONNECT:$socket" | while read -r event;do
+	socat - "UNIX-CONNECT:$socket" | while read -r event; do
 		#look for eof event
-		if printf "%s" "$event" | grep -q "end-file.*eof";then
+		if printf "%s" "$event" | grep -q "end-file.*eof"; then
 			i=$(cat "$logdir/counter")
-			: $((i+=1))
+			: $((i += 1))
 			pgrep -f "$socket" >/dev/null || continue
 			[ -n "$(cat "$logdir/next")" ]
-			play "$(sed -n "$((i+=1))p" "$logdir/next")" "$1"
-			printf '%s' "$i" > "$logdir/counter"
-			tail -1 "$logdir/next" | grep -q "$(cut -d'>' -f2 < "$logdir/current")" && get_music_list
+			play "$(sed -n "$((i += 1))p" "$logdir/next")" "$1"
+			printf '%s' "$i" >"$logdir/counter"
+			tail -1 "$logdir/next" | grep -q "$(cut -d'>' -f2 <"$logdir/current")" && get_music_list
 		fi
 	done
 	cleanup_shit
@@ -142,43 +141,37 @@ loop() {
 
 #discord rich presence written in a nut-shell code
 set_activity() {
-	op=0
-	handshake='{"v":1,"client_id":"'$presence_client_id'"}'
-	datalen=${#handshake}
-	for i in $(seq 0 3); do
-		byte=$(((op >> (i * 8)) & 255))
-		printf "\\$(printf "%03o" "$byte")"
+	#length of payload
+	len=${#1}
+	#outputs opcode in little endian encoding
+	printf "\\001\\000\\000\\000"
+	#loop for length to encode in little endian encoding
+	for i in 0 8 16 24; do
+		len=$((len >> i))
+		#shellcheck disable=SC2059
+		printf "\\$(printf "%03o" "$len")"
 	done
-	for i in $(seq 0 3); do
-		byte=$(((datalen >> (i * 8)) & 255))
-		printf "\\$(printf "%03o" "$byte")"
-	done
-	printf "%s" "$handshake"
-	op=1
-	datalen=${#1}
-	for i in $(seq 0 3); do
-		byte=$(((op >> (i * 8)) & 255))
-		printf "\\$(printf "%03o" "$byte")"
-	done
-	for i in $(seq 0 3); do
-		byte=$(((datalen >> (i * 8)) & 255))
-		printf "\\$(printf "%03o" "$byte")"
-	done
+	#print the payload that need to be sent
 	printf "%s" "$1"
 }
 
 update_rich_presence() {
-	pkill -f "nc -U $discord_ipc" > /dev/null
-	sleep 2
+	pkill -f "nc -U $discord_ipc" >/dev/null
 	title=$1
 	id=$2
+	dur=$3
 	start=$(date +%s)
-	dur=$(printf '{ "command": ["get_property", "duration"] }\n' | socat - "$socket" | sed -nE 's|.*data":([^.]*).*|\1|p')
-	payload='{"cmd": "SET_ACTIVITY", "args": {"activity": {"details": "'$(printf "%s" "$title" | sed 's|[^-]*$||;s|-$||;s| $||;s|^ ||')'", "state": "'$(printf "%s" "$title" | sed 's_.* - __;s| $||')'", "timestamps": {"start": '"$start"',"end": '"$((start + dur))"'}, "assets": {"large_image": "https://i.ytimg.com/vi/'$id'/mqdefault.jpg","large_text":"Checkmate Premium Users"}}}, "nonce": "1"}'
+	payload='{"cmd": "SET_ACTIVITY", "args": {"activity": {"details": "'$(printf "%s" "$title" | sed 's|[^-]*$||;s|-$||;s| $||;s|^ ||')'", "state": "'$(printf "%s" "$title" | sed 's_.* - __;s| $||')'", "timestamps": {"start": '"$start"',"end": '"$((start + dur))"'}, "assets": {"large_image": "https://i.ytimg.com/vi/'$id'/mqdefault.jpg","large_text":"Checkmate Premium Users"},"buttons": [{"label":"Listen Song", "url": "https://music.youtube.com/watch?v='$id'"}]},"pid":786}, "nonce": "1"}' #pid needs to be set and constant so discord knows which application to update
+	{
+		#handshake
+		handshake='{"v":1,"client_id":"'$presence_client_id'"}'
+		# handshake with opcode
+		printf "\\000\\000\\000\\000\\$(printf "%03o" "${#handshake}")\\000\\000\\000%s" "$handshake"
 
-	#with buttons, but this MF is not working --
-	#payload='{"cmd": "SET_ACTIVITY", "args": {"activity": {"details": "'$(printf "%s" "$title" | sed 's|[^-]*$||;s|-$||;s| $||;s|^ ||')'", "state": "'$(printf "%s" "$title" | sed 's_.* - __;s| $||')'", "timestamps": {"start": '"$(date +%s)"'}, "assets": {"large_image": "https://i.ytimg.com/vi/'$id'/mqdefault.jpg","large_text":"Checkmate Premium Users","buttons": [{"label":"Listen Here", "url": "https://www.youtube.com/watch?v='$id'"}]}}}, "nonce": "1"}'
-	set_activity "$payload" | nc -U "$discord_ipc"
+		#wait for response which comes within 1 second(max 2 seconds)
+		sleep 3
+		set_activity "$payload"
+	} | nc -U "$discord_ipc" >"/tmp/ipclog"
 }
 
 play() {
@@ -198,7 +191,7 @@ play() {
 	    \"client\": {
 	      \"clientName\": \"ANDROID_MUSIC\",
 	      \"clientVersion\": \"$andy_yt_ver\",
-	      \"androidSdkVersion\": $(( random_no + extra_up + 29 )),
+	      \"androidSdkVersion\": $((random_no + extra_up + 29)),
 	      \"userAgent\": \"$droid_agent\",
 	      \"hl\": \"en\",
 	      \"timeZone\": \"UTC\",
@@ -228,11 +221,14 @@ play() {
 	printf '{"command":["loadfile","%s","replace"]}\n' "$audio_url" | socat - "$socket"
 	printf "currently playing : %s >%s\n" "$title" "$id" >"$logdir/current"
 
+	#required for discord rich presence to set end timestamp
+	duration=$(printf '%s' "$audio_url" | sed -nE 's|.*&dur=([^\.]*).*|\1|p')
+
 	#self explainatory
 	get_song_lyrics "$id" &
 
 	#update the discord rich presence, requires client id
-	update_rich_presence "$title" "$id" &
+	update_rich_presence "$title" "$id" "$duration" &
 
 	#next songs data
 	[ -n "$3" ] && get_music_list &
@@ -249,8 +245,8 @@ search_play() {
 	#storing context
 	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20231010.05.00"}}' >"$logdir/context"
 
-	if ! (printf '%s' "$query" | grep -q 'https:' || printf '%s' "$query" | grep -q 'ID:');then
-	#json for song search
+	if ! (printf '%s' "$query" | grep -q 'https:' || printf '%s' "$query" | grep -q 'ID:'); then
+		#json for song search
 		json_search="{
 		\"context\" : $(cat "$logdir/context"),
 		\"query\": \"$query\",
@@ -267,10 +263,10 @@ search_play() {
 
 	#extracting your cookies so that the song list are according to your taste
 	get_cookies
-	printf '' > "$logdir/next"
-	printf "%s\n" "$res" >> "$logdir/next"
-	printf "%s" "$res" | cut -f2 > "$logdir/start"
-	printf "0" > "$logdir/counter"
+	printf '' >"$logdir/next"
+	printf "%s\n" "$res" >>"$logdir/next"
+	printf "%s" "$res" | cut -f2 >"$logdir/start"
+	printf "0" >"$logdir/counter"
 	rm -f "$logdir/continue_token"
 	[ -z "$res" ] || play "$res" "verbose" "1"
 }
@@ -281,9 +277,9 @@ play_next() {
 	#like this script-name "play_next" "menu"
 	pgrep -f "$socket" || return 0
 	i=$(cat "$logdir/counter")
-	if [ -z "$1" ]; then 
-		: $((i+=1))
-		play "$(sed -n "$((i+=1))p" "$logdir/next")" "$1"
+	if [ -z "$1" ]; then
+		: $((i += 1))
+		play "$(sed -n "$((i += 1))p" "$logdir/next")" "$1"
 	else
 		notify-send -h "string:x-canonical-private-synchronous:${0##*/}" -i "$logdir/default.jpg" "$(cut -d">" -f1 "$logdir/current" | tr ':' '\n')"
 		next=$(nl -n'ln' -v0 "$logdir/next" | sed "s/^$i /& /" | menu "YT-music [play-next]: " "$i")
@@ -291,12 +287,12 @@ play_next() {
 		i=$(printf '%s' "$next" | sed 's///g' | cut -f1 | tr -d ' ')
 		play "$(printf '%s' "$next" | cut -f2-)" "verbose"
 	fi
-	printf '%s' "$i" > "$logdir/counter"
-	tail -1 "$logdir/next" | grep -q "$(cut -d'>' -f2 < "$logdir/current")" && get_music_list
+	printf '%s' "$i" >"$logdir/counter"
+	tail -1 "$logdir/next" | grep -q "$(cut -d'>' -f2 <"$logdir/current")" && get_music_list
 }
 
 menu() {
-	bemenu --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 3 -p "$1" -l 25 -I "${2:-0}" -P ">>" 
+	bemenu --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 3 -p "$1" -l 25 -I "${2:-0}" -P ">>"
 }
 
 logdir="/tmp/${0##*/}"

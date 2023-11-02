@@ -117,5 +117,4 @@ stop() {
 tmp_file="/tmp/screenrecord.mp4"
 process_file="/tmp/processed.mp4"
 
-
 [ "$#" -gt 0 ] && $1 "$2"

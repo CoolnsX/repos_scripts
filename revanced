@@ -1,11 +1,10 @@
 #!/bin/sh
 
-
-info(){
+info() {
 	printf "\033[1;35m=> \033[1;${2:-36}m%s\033[0m\n" "$1"
 }
 
-download_apk(){
+download_apk() {
 	[ -z "$1" ] && info "[ $app ][ v$version ] Version doesn't Exist!" "31" && exit 1
 	info "[ $app ][ v$version ] Fetching Download page.."
 	final_page=$(curl -s "${apk_provider_url}${1}" --tlsv1.3 -A "$agent" | sed -nE 's|.*href="(.*\/download\/[^"]*)".*|\1|p' | sed 's|&amp;|\&|g')
@@ -18,7 +17,7 @@ download_apk(){
 	info "[ $app ][ v$version ] Unable to Download.." "31" && exit 1
 }
 
-download_keystore () {
+download_keystore() {
 	[ ! -f "$HOME/.secrets" ] && return 0
 	#shellcheck disable=SC1091
 	. "$HOME/.secrets"
@@ -41,7 +40,7 @@ keystore=""
 [ -d "$tmp_dir" ] || mkdir "$tmp_dir"
 
 #pre-requisite
-if  [ ! -f "$tmp_dir/$rv_cli.aria2" ] && [ ! -f "$tmp_dir/$rv_patch.aria2" ] && [ ! -f "$tmp_dir/$rv_inte.aria2" ] && [ -f "$tmp_dir/$rv_cli" ] && [ -f "$tmp_dir/$rv_patch" ] && [ -f "$tmp_dir/$rv_inte" ];then
+if [ ! -f "$tmp_dir/$rv_cli.aria2" ] && [ ! -f "$tmp_dir/$rv_patch.aria2" ] && [ ! -f "$tmp_dir/$rv_inte.aria2" ] && [ -f "$tmp_dir/$rv_cli" ] && [ -f "$tmp_dir/$rv_patch" ] && [ -f "$tmp_dir/$rv_inte" ]; then
 	info "revanced-cli,revanced-patches,revanced-integrations already downloaded" "32"
 else
 	rm -f "$tmp_dir"/*.aria2
@@ -57,7 +56,7 @@ download_keystore
 [ -z "$app" ] && exit 0
 
 #set variables according to selected app
-case $app in 
+case $app in
 	youtube)
 		arch="universal"
 		[ -z "$2" ] && version=$(curl -s "https://api.revanced.app/v2/patches/latest" | sed -nE 's|.*youtube","versions":\[[0-9\.",]*,"([^\}]*)"\].*|\1|p') || version=$2
@@ -73,28 +72,29 @@ case $app in
 	*)
 		info "Wrong Package Name, please pass either 'youtube' or 'youtube-music'" "31"
 		exit 1
+		;;
 esac
 
-if [ -f "$tmp_dir/$app-$version.apk" ] && [ ! -f "$tmp_dir/$app-$version.apk.aria2" ];then
+if [ -f "$tmp_dir/$app-$version.apk" ] && [ ! -f "$tmp_dir/$app-$version.apk.aria2" ]; then
 	info "Latest Recommended $app v$version already downloaded" "32"
 else
 	info "[ $app ][ v$version ] Fetching App.."
 	download_apk "$(curl -s "$apk_provider_url/apk/google-inc/$app/$app-$version-release/" -A "$agent" --tlsv1.3 | tr -d '\n' | sed 's|svg class|\n|g' | sed -nE "s|.*$arch.*nodpi.*accent_color\" href=\"([^\"]*)\".*|\1|p")"
-fi 
+fi
 
 info "Checking Patches for excluding.."
 patch_list=$(java -jar "$tmp_dir/$rv_cli" list-patches "$tmp_dir/$rv_patch" --with-descriptions=false)
 
-if [ -n "$exclude_patch_list" ];then
+if [ -n "$exclude_patch_list" ]; then
 	info "Excluding Patches.." "33"
-	for i in $(printf "%s" "$exclude_patch_list" | tr ',' '\n');do
-		if printf "%s" "$patch_list" | grep -iq "$(printf '%s' "$i" | tr '-' ' ')";then 
-		res="32m ✓"
-	else
-		res="31m "
-		check=1
-	fi
-	printf "\033[2K\r\033[1;%s %s\n" "$res" "$i"
+	for i in $(printf "%s" "$exclude_patch_list" | tr ',' '\n'); do
+		if printf "%s" "$patch_list" | grep -iq "$(printf '%s' "$i" | tr '-' ' ')"; then
+			res="32m ✓"
+		else
+			res="31m "
+			check=1
+		fi
+		printf "\033[2K\r\033[1;%s %s\n" "$res" "$i"
 	done
 	exclude_patches=$(printf "%s" "$exclude_patch_list" | tr ',' '\n' | sed 's|^|--exclude |g' | tr '\n' ' ')
 else
