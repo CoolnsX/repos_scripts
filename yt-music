@@ -169,7 +169,7 @@ update_rich_presence() {
 		printf "\\000\\000\\000\\000\\$(printf "%03o" "${#handshake}")\\000\\000\\000%s" "$handshake"
 
 		#wait for response which comes within 1 second(max 2 seconds)
-		sleep 3
+		sleep 2
 		set_activity "$payload"
 	} | nc -U "$discord_ipc" >"/tmp/ipclog"
 }
@@ -183,8 +183,8 @@ play() {
 
 	#get song's audio url
 	random_no=$(head /dev/urandom | tr -dc '0-4' | cut -c1)
-	andy_yt_ver="6.22.51"
-	extra_up=$((random_no >= 2))
+	andy_yt_ver="6.26.50"
+	extra_up=$((random_no > 1))
 	droid_agent="com.google.android.apps.youtube.music/$andy_yt_ver (Linux; U; Android 1$random_no) gzip"
 	json="{
 	  \"context\": {
