@@ -18,17 +18,15 @@ download_apk() {
 }
 
 download_keystore() {
-	[ ! -f "$HOME/.secrets" ] && return 0
-	#shellcheck disable=SC1091
-	. "$HOME/.secrets"
-	load_revanced_creds
+	RV_KEYSTORE_URL="https://cloud.coolans.dev/s/Mpb8aDzxaP9bDpt/download"
+	RV_KEYSTORE="yt-revanced.keystore"
 	keystore="--keystore $tmp_dir/$RV_KEYSTORE"
 	[ ! -f "$tmp_dir/$RV_KEYSTORE" ] && curl -s "$RV_KEYSTORE_URL" -o "$tmp_dir/$RV_KEYSTORE" && info "Downloaded Keystore file in $tmp_dir" "32" && return 0
 	[ ! -f "$tmp_dir/$RV_KEYSTORE" ] && keystore=""
 }
 
-tmp_dir="/tmp/revanced"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+tmp_dir="${TMPDIR:-/tmp}/revanced"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
 apk_provider_url="https://www.apkmirror.com"
 date=$(date +%F)
 rv_cli="cli-$date.jar"
