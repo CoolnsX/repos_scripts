@@ -18,7 +18,7 @@ download_apk() {
 }
 
 download_keystore() {
-	RV_KEYSTORE_URL="https://cloud.coolans.dev/s/Mpb8aDzxaP9bDpt/download"
+	RV_KEYSTORE_URL="https://raw.githubusercontent.com/CoolnsX/revanced-build/master/yt-revanced.keystore"
 	RV_KEYSTORE="yt-revanced.keystore"
 	keystore="--keystore $tmp_dir/$RV_KEYSTORE"
 	[ ! -f "$tmp_dir/$RV_KEYSTORE" ] && curl -s "$RV_KEYSTORE_URL" -o "$tmp_dir/$RV_KEYSTORE" && info "Downloaded Keystore file in $tmp_dir" "32" && return 0
