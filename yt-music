@@ -292,7 +292,11 @@ play_next() {
 }
 
 menu() {
-	bemenu --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 3 -p "$1" -l 25 -I "${2:-0}" -P ">>"
+	if command -v bemenu &> /dev/null; then
+		bemenu --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 3 -p "$1" -l 25 -I "${2:-0}" -P ">>"
+	else
+		fzf --prompt="$1" --height=25 --reverse --border=horizontal --header="${2:-0}" --marker=">>"
+	fi
 }
 
 logdir="/tmp/${0##*/}"
