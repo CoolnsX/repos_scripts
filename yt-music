@@ -260,7 +260,6 @@ search_play() {
 		id=$(printf '%s' "$query" | cut -d':' -f2 | cut -d"=" -f2 | cut -d"/" -f4 | cut -d'&' -f1)
 		title=$(curl -s "https://www.youtube.com/oembed?url=http://www.youtube.com/watch?v=$id&format=xml" | sed -nE 's|.*<title>([^<]*)<.*|\1|p' | sed 's|&amp;|\&|g')
 		res=$(printf '%s\t%s' "$title" "$id")
-
 	fi
 
 	printf '' >"$logdir/next"
@@ -292,7 +291,7 @@ play_next() {
 }
 
 menu() {
-	if command -v bemenu &> /dev/null; then
+	if command -v bemenu >/dev/null; then
 		bemenu --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 3 -p "$1" -l 25 -I "${2:-0}" -P ">>"
 	else
 		fzf --prompt="$1" --height=25 --reverse --border=horizontal --header="${2:-0}" --marker=">>"
