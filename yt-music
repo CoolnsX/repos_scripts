@@ -244,6 +244,8 @@ search_play() {
 
 	#storing context
 	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20231010.05.00"}}' >"$logdir/context"
+	#extracting your cookies so that the song list are according to your taste
+	get_cookies
 
 	if ! (printf '%s' "$query" | grep -q 'https:' || printf '%s' "$query" | grep -q 'ID:'); then
 		#json for song search
@@ -261,8 +263,6 @@ search_play() {
 
 	fi
 
-	#extracting your cookies so that the song list are according to your taste
-	get_cookies
 	printf '' >"$logdir/next"
 	printf "%s\n" "$res" >>"$logdir/next"
 	printf "%s" "$res" | cut -f2 >"$logdir/start"

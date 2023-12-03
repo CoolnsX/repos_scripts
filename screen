@@ -34,7 +34,7 @@ record() {
 	#shellcheck disable=SC2034
 	mic="$(pactl list sources | grep -B1 'node.nick = "Digital Microphone"' | sed -nE 's|.*node.name = "([^"]*)"|\1.monitor|p')" #It is called in eval on line 9
 	#shellcheck disable=SC2034
-	speaker="$(pactl list sources | grep -B1 'node.nick = "Speaker + Headphones"' | sed -nE 's|.*node.name = "([^"]*)"|\1.monitor|p')" #It is called in eval on line 9
+	speaker="alsa_output.pci-0000_00_1f.3.analog-stereo.monitor" #It is called in eval on line 9
 	source=$(printf "screen only\nspeaker\nmic" | menu "Audio Source:" "3")
 
 	[ -z "$source" ] && info "" "2000" "No option Selected" && return 0

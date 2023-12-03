@@ -9,7 +9,7 @@ c_reset="\033[0m"
 down() {
 	tput reset
 	info_$os "Torrent: Downloading"
-	aria2c -d Downloads --select-file=$2 --seed-time=0 $1 && info_$os "Torrent: Download complete" && rm -f $file || error_$os "Torrent: Error!!"
+	aria2c --file-allocation=trunc -d Softwares --select-file=$2 --seed-time=0 $1 && info_$os "Torrent: Download complete" && rm -f $file || error_$os "Torrent: Error!!"
 }
 
 if [ "$(uname -o)" = "Android" ]; then
