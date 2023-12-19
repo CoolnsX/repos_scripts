@@ -28,7 +28,8 @@ esac
 [ -z "$query" ] && exit 0
 [ "$os" = "linux" ] && tmp=$(notify-send "Searching query" -p)
 query=$(printf "%s" "$query" | tr " " "+")
-data=$(curl -s "https://apibay.org/q.php?q=$query" | sed 's/},/}\n/g' | tr -d "[]")
+data=$(curl -s "https://apibay.org/q.php?q=$query" | tee data | sed 's/},/}\n/g' | tr -d "[]")
+
 [ "$os" = "linux" ] && notify-send "tidying up data" -r $tmp
 size=$(printf "%s" "$data" | sed -nE 's/.*name.*size":"(.*)",.*user.*/\1/p')
 name_seed=$(printf "%s" "$data" | sed -nE 's/.*name":"(.*)","info_hash.*seeders":"(.*)",.*num.*/\2] \1/p')

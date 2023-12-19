@@ -24,7 +24,7 @@ torrent_linux() {
 }
 
 torrent_droid() {
-	"$HOME/torrent" "$1"
+	"$HOME/.shortcuts/torrent" "$1"
 }
 
 info_droid() {
