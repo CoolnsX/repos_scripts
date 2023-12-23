@@ -1,0 +1,89 @@
+#!/bin/sh
+# script for downloading videos/audios from sites...
+#shellcheck disable=SC2317
+
+info() {
+	printf "\033[1;36m[ %s ] [ %s ] %s\033[0m\n" "$2" "$3" "$1"
+}
+
+error() {
+	printf "\033[1;31m[ %s ] [ %s ] %s\033[0m\n" "$2" "$3" "$1"
+}
+
+notify_droid() {
+	termux-notification -c "$1"
+}
+
+notify_linux() {
+	notify-send "$1" -h "string:x-canonical-private-synchronous:${0##*/}"
+}
+
+#main
+link="$1"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+case $(uname -o) in
+	*ndroid*)
+		download_dir="/sdcard"
+		[ -z "$link" ] && link=$(termux-clipboard-get)
+		os="droid"
+		;;
+	*)
+		download_dir="$HOME"
+		[ -z "$link" ] && link=$(wl-paste)
+		os="linux"
+		;;
+esac
+
+printf "\n\033[1;34m Video link :\033[0m%s\n" "$link"
+case "$link" in
+	*instagram*)
+		app="Instagram"
+		id=$(printf "%s" "$link" | cut -d'/' -f5)
+		[ -z "$id" ] && error "Unable to extract ID" "$app" "$id"
+		info "Extracting Video URL" "$app" "$id"
+		fallback=1
+		;;
+	*youtu*)
+		app="Youtube"
+		id=$(printf "%s" "$link" | cut -d"=" -f2 | cut -d"/" -f4)
+		[ -z "$id" ] && error "Unable to extract ID" "$app" "$id"
+		info "Extracting Video URL" "$app" "$id"
+		yt_ver="2.20231219.04.00"
+		json="{
+		  \"context\": {
+		    \"client\": {
+		      \"clientName\": \"WEB\",
+		      \"clientVersion\": \"$yt_ver\",
+		      \"userAgent\": \"$agent\",
+		      \"hl\": \"en\",
+		      \"timeZone\": \"Asia/Calcutta\",
+		      \"utcOffsetMinutes\": 330
+		    }
+		  },
+		  \"videoId\": \"$id\",
+		  \"playbackContext\": {
+		    \"contentPlaybackContext\": {
+		      \"html5Preference\": \"HTML5_PREF_WANTS\"
+		    }
+		  },
+		  \"contentCheckOk\": true,
+		  \"racyCheckOk\": true
+		}"
+		data=$(curl -X POST -A "$agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8&prettyPrint=false" -H "content-type:application/json" -H "X-Youtube-Client-Version: $yt_ver" -d "$json" -e "$link" | tr '{}' '\n' | sed -nE 's|.*,"title":"([^"]*)".*|\1|p;s|.*itag":18,"url":"([^"]*)".*|\1|p;s|.*itag":22,"url":"([^"]*)".*|\1|p')
+		title=$(printf "%s" "$data" | tail -1)
+		video_url=$(printf "%s" "$data" | tail -2 | head -1)
+		printf "%s" "$video_url" | grep -q "googlevideo\.com" || fallback=1
+		;;
+esac
+
+if [ -n "$fallback" ]; then
+	info "Using fallback" "$app" "$id"
+	yt-dlp "$link" -o "$download_dir/%(title)s.%(ext)s"
+else
+	info "Downloading Video" "$app" "$id"
+	aria2c -x16 -s16 --user-agent="$agent" "$video_url" -d "$download_dir" --summary-interval=0 -o "$title.mp4" || notify_$os "Unable to Download $app Video"
+fi
+
+notify_$os "$app Video Downloaded"
+exit 0
