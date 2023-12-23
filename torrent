@@ -29,7 +29,7 @@ fi
 . $script_dir/.functions
 
 #check if the url is magnet
-! printf "%s" "$magnet" | grep -q "magnet:?xt=urn:btih:" && error_$os "Not a valid magnet link!" && exit 0
+! printf "%s" "$magnet" | grep -qE "magnet:\?xt=urn:btih:|torrent" && error_$os "Not a valid magnet link!" && exit 0
 trap "rm -f $HOME/.cache/*.torrent;exit 0" INT HUP
 echo "$magnet"
 printf "${c_yellow}Download>>\n${c_green}[f]ull torrent\n${c_cyan}[p]artial torrent \n${c_red}[q]uit"
