@@ -51,7 +51,7 @@ case "$link" in
 		done
 
 		info "Fetching Video URL" "$app" "$id"
-		video_url=$(curl -s "https://i.instagram.com/api/v1/web/get_ruling_for_content/?content_type=MEDIA&target_id=$res" -H "x-ig-app-id:936619743392459" -H "x-ig-www-claim:0" -A "$agent" -c - -o /dev/null | curl -A "$agent" -s -G "https://www.instagram.com/graphql/query/" -H "content-type:application/json" --data-urlencode 'query_hash=9f8827793ef34641b2fb195d4d41151c' --data-urlencode 'variables={"shortcode":"'"$id"'","include_reel":false,"include_logged_out":false}' -e "$link" -b - | tr '{}' '\n' | sed -nE 's|.*video_url":"([^"]*)".*|\1|p;s|.*"shortcode":"([^"]*)".*|\1|p' | sed 's/\u0026/\&/g;s/\\//g')
+		video_url=$(curl -s "https://i.instagram.com/api/v1/web/get_ruling_for_content/?content_type=MEDIA&target_id=$res" -H "x-ig-app-id:936619743392459" -H "x-ig-www-claim:0" -A "$agent" -c - -o /dev/null | curl -A "$agent" -s -G "https://www.instagram.com/graphql/query/" -H "content-type:application/json" --data-urlencode 'query_hash=9f8827793ef34641b2fb195d4d41151c' --data-urlencode 'variables={"shortcode":"'"$id"'","include_reel":false,"include_logged_out":false}' -e "$link" -b - | tr '{}' '\n' | sed -nE 's|.*video_url":"([^"]*)".*|\1|p' | sed 's/\u0026/\&/g;s/\\//g')
 		printf "%s" "$video_url" | grep -qE 'instagram.*mp4' || fallback=1
 		;;
 	*youtu*)
