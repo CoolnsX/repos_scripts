@@ -35,20 +35,30 @@ case $(uname -o) in
 		;;
 esac
 
-printf "\n\033[1;34m Video link :\033[0m%s\n" "$link"
+printf "\033[1;34m Video link :\033[0m%s\n" "$link"
 case "$link" in
 	*instagram*)
 		app="Instagram"
 		id=$(printf "%s" "$link" | cut -d'/' -f5)
 		[ -z "$id" ] && error "Unable to extract ID" "$app" "$id"
-		info "Extracting Video URL" "$app" "$id"
-		fallback=1
+		info "Decoding ID" "$app" "$id"
+		res=0
+		enc_char="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+		table=$(printf "%s" "$enc_char" | sed 's/\(.\)/\1\n/g' | nl -v0 | tr '\t' ':' | tr -d ' ')
+		for key in $(printf "%s" "$id" | sed -e 's/\(.\)/\1\n/g');do 
+		    value=$(printf "%s" "$table" | sed -nE "s/([^:]*):$key/\1/p")
+		    res=$((res*64+value))
+		done
+
+		info "Fetching Video URL" "$app" "$id"
+		video_url=$(curl -s "https://i.instagram.com/api/v1/web/get_ruling_for_content/?content_type=MEDIA&target_id=$res" -H "x-ig-app-id:936619743392459" -H "x-ig-www-claim:0" -A "$agent" -c - -o /dev/null | curl -A "$agent" -s -G "https://www.instagram.com/graphql/query/" -H "content-type:application/json" --data-urlencode 'query_hash=9f8827793ef34641b2fb195d4d41151c' --data-urlencode 'variables={"shortcode":"'"$id"'","include_reel":false,"include_logged_out":false}' -e "$link" -b - | tr '{}' '\n' | sed -nE 's|.*video_url":"([^"]*)".*|\1|p;s|.*"shortcode":"([^"]*)".*|\1|p' | sed 's/\u0026/\&/g;s/\\//g')
+		printf "%s" "$video_url" | grep -qE 'instagram.*mp4' || fallback=1
 		;;
 	*youtu*)
 		app="Youtube"
 		id=$(printf "%s" "$link" | cut -d"=" -f2 | cut -d"/" -f4)
 		[ -z "$id" ] && error "Unable to extract ID" "$app" "$id"
-		info "Extracting Video URL" "$app" "$id"
+		info "Fetching Video URL" "$app" "$id"
 		yt_ver="2.20231219.04.00"
 		json="{
 		  \"context\": {
@@ -70,9 +80,7 @@ case "$link" in
 		  \"contentCheckOk\": true,
 		  \"racyCheckOk\": true
 		}"
-		data=$(curl -X POST -A "$agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8&prettyPrint=false" -H "content-type:application/json" -H "X-Youtube-Client-Version: $yt_ver" -d "$json" -e "$link" | tr '{}' '\n' | sed -nE 's|.*,"title":"([^"]*)".*|\1|p;s|.*itag":18,"url":"([^"]*)".*|\1|p;s|.*itag":22,"url":"([^"]*)".*|\1|p')
-		title=$(printf "%s" "$data" | tail -1)
-		video_url=$(printf "%s" "$data" | tail -2 | head -1)
+		video_url=$(curl -X POST -A "$agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8&prettyPrint=false" -H "content-type:application/json" -H "X-Youtube-Client-Version: $yt_ver" -d "$json" -e "$link" | tr '{}' '\n' | sed -nE 's|.*,"title":"([^"]*)".*|\tout=\1\.mp4|p;s|.*itag":18,"url":"([^"]*)".*|\1|p;s|.*itag":22,"url":"([^"]*)".*|\1|p' | tail -2)
 		printf "%s" "$video_url" | grep -q "googlevideo\.com" || fallback=1
 		;;
 esac
@@ -82,7 +90,7 @@ if [ -n "$fallback" ]; then
 	yt-dlp "$link" -o "$download_dir/%(title)s.%(ext)s"
 else
 	info "Downloading Video" "$app" "$id"
-	aria2c -x16 -s16 --user-agent="$agent" "$video_url" -d "$download_dir" --summary-interval=0 -o "$title.mp4" || notify_$os "Unable to Download $app Video"
+	printf "%s" "$video_url" | aria2c -x16 -s16 -j10 --user-agent="$agent" -d "$download_dir" -i - --download-result=hide --summary-interval=0 || notify_$os "Unable to Download $app Video"
 fi
 
 notify_$os "$app Video Downloaded"
