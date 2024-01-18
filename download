@@ -50,7 +50,7 @@ instagram() {
 	printf '%s' "$n" | cut -c-"$e" | sed 's/./&\n/g' | tr -s '\n' | nl -nln -v0 | sed -nE 's|^([0-9]*)[[:space:]]*(.*)|s\/\2\/\1\/g|p' > "$sed_file"
 	printf 's/%s/\\n/g' "$(printf "%s" "$n" | cut -c"$((e+1))")" >> "$sed_file"
 	
-	data=$(printf "%s" "$response" | head -1 | sed -f "$sed_file" | sed -n '1200,2500p')
+	data=$(printf "%s" "$response" | head -1 | sed -f "$sed_file" | sed -n '1200,$p')
 	
 	info "Decoding JS" "Instagram" "$2"
 	printf "" > "$sed_file"
