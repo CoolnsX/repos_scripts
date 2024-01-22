@@ -127,6 +127,10 @@ case "$link" in
 		video_url=$(curl -X POST -A "$agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8&prettyPrint=false" -H "content-type:application/json" -H "X-Youtube-Client-Version: $yt_ver" -d "$json" -e "$link" | tr '{}' '\n' | sed -nE 's|.*,"title":"([^"]*)".*|\tout=\1\.mp4|p;s|.*itag":18,"url":"([^"]*)".*|\1|p;s|.*itag":22,"url":"([^"]*)".*|\1|p' | tail -2)
 		printf "%s" "$video_url" | grep -q "googlevideo\.com" || fallback=1
 		;;
+	*)
+		info "Invalid URL" "none" "none"
+		exit 0
+		;;
 esac
 
 if [ -n "$fallback" ]; then
