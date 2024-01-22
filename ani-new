@@ -1,23 +1,11 @@
 #!/bin/sh
 
-decrypt_allanime() {
-	printf "%s" "$-" | grep -q 'x' && set +x
-	for hex in $(printf '%s' "$1" | sed 's/../&\n/g'); do
-		dec=$(printf '%d' "0x$hex")
-		xor=$((dec ^ 56))
-		oct=$(printf "%03o" "$xor")
-		#shellcheck disable=SC2059
-		printf "\\$oct"
-	done
-	printf "%s" "$-" | grep -q 'x' || set -x
-}
-
 allanime_curl() {
 	curl -e "https://allanime.to" -sL --cipher AES256-SHA256 -G "https://api.${domain}/api" -A "$agent" --data-urlencode "$1" --data-urlencode "$2"
 }
 
 domain="allanime.day"
-random_no=$(head /dev/urandom | tr -dc '3-7' | cut -c1)
+random_no=$(head /dev/urandom | tr -dc '7-9' | cut -c1)
 agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/11${random_no}.0.0.0 Safari/537.36"
 debug=$2
 
@@ -57,7 +45,7 @@ printf "%s\n" "$url" | while read -r id title; do
 
 	printf 'dropbox\tSak\nwetransfer\tKir\nsharepoint\tS-mp4\ngogoplay\tLuf-mp4\n' | while read -r provider_name provider_regex; do
 		info_$os "Fetching $provider_name links"
-		provider_id="$(decrypt_allanime "$(printf "%s" "$data" | sed -n "/$provider_regex :/p" | head -1 | cut -d':' -f2)" | sed "s/\/clock/\/clock\.json/")"
+		provider_id="$(printf "%s" "$data" | sed -n "/$provider_regex :/p" | cut -d':' -f2 | sed 's/../&\n/g' | sed "s/^01$/9/g;s/^08$/0/g;s/^05$/=/g;s/^0a$/2/g;s/^0b$/3/g;s/^0c$/4/g;s/^07$/?/g;s/^00$/8/g;s/^5c$/d/g;s/^0f$/7/g;s/^5e$/f/g;s/^17$/\//g;s/^54$/l/g;s/^09$/1/g;s/^48$/p/g;s/^4f$/w/g;s/^0e$/6/g;s/^5b$/c/g;s/^5d$/e/g;s/^0d$/5/g;s/^53$/k/g;s/^1e$/\&/g;s/^5a$/b/g;s/^59$/a/g;s/^4a$/r/g;s/^4c$/t/g;s/^4e$/v/g;s/^57$/o/g;s/^51$/i/g;" | tr -d '\n' | sed "s/\/clock/\/clock\.json/")"
 		[ -z "$provider_id" ] && continue
 		provider_video=$(curl -s "https://${domain}${provider_id}" | sed 's|},{|\n|g' | sed -nE 's|.*link":"([^"]*)".*"resolutionStr":"([^"]*)".*|\1|p;s|.*hls","url":"([^"]*)".*"hardsub_lang":"en-US".*|\1|p' | head -1)
 		[ -z "$provider_video" ] && continue
