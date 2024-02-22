@@ -1,7 +1,7 @@
 #!/bin/sh
 
 allanime_curl() {
-	curl -e "https://allanime.to" -sL --cipher AES256-SHA256 -G "https://api.${domain}/api" -A "$agent" --data-urlencode "$1" --data-urlencode "$2"
+	curl -e "https://allanime.to" -sL AES256-SHA256 -G "https://api.${domain}/api" -A "$agent" --data-urlencode "$1" --data-urlencode "$2"
 }
 
 domain="allanime.day"
