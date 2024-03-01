@@ -58,6 +58,7 @@ help() {
 
 cleanup_shit() {
 	pkill -f "nc -U $discord_ipc" >/dev/null
+	pkill -f "tail -f $presence" >/dev/null
 	rm -rdf "$logdir"
 	exit 0
 }
@@ -155,23 +156,32 @@ set_activity() {
 	printf "%s" "$1"
 }
 
+start_rich_presence() {
+	rm -f "$handshook" > /dev/null
+	tail -f "$presence" | nc -U "$discord_ipc" > "/tmp/ipclog"
+}
+
 update_rich_presence() {
-	pkill -f "nc -U $discord_ipc" >/dev/null
 	title=$1
 	id=$2
 	dur=$3
 	start=$(date +%s)
 	payload='{"cmd": "SET_ACTIVITY", "args": {"activity": {"details": "'$(printf "%s" "$title" | sed 's|[^-]*$||;s|-$||;s| $||;s|^ ||')'", "state": "'$(printf "%s" "$title" | sed 's_.* - __;s| $||')'", "timestamps": {"start": '"$start"',"end": '"$((start + dur))"'}, "assets": {"large_image": "https://i.ytimg.com/vi/'$id'/mqdefault.jpg","large_text":"Checkmate Premium Users"},"buttons": [{"label":"Listen Song", "url": "https://music.youtube.com/watch?v='$id'"}]},"pid":786}, "nonce": "1"}' #pid needs to be set and constant so discord knows which application to update
-	{
-		#handshake
-		handshake='{"v":1,"client_id":"'$presence_client_id'"}'
-		# handshake with opcode
-		printf "\\000\\000\\000\\000\\$(printf "%03o" "${#handshake}")\\000\\000\\000%s" "$handshake"
+	if [ -e "$handshook" ];then
+		set_activity "$payload" > "$presence"
+	else
+		{
+			#handshake
+			handshake='{"v":1,"client_id":"'$presence_client_id'"}'
+			# handshake with opcode
+			printf "\\000\\000\\000\\000\\$(printf "%03o" "${#handshake}")\\000\\000\\000%s" "$handshake"
 
-		#wait for response which comes within 1 second(max 2 seconds)
-		sleep 2
-		set_activity "$payload"
-	} | nc -U "$discord_ipc" >"/tmp/ipclog"
+			#wait for response which comes within 1 second(max 2 seconds)
+			sleep 2
+			set_activity "$payload"
+		} > "$presence"
+		touch "$handshook"
+	fi
 }
 
 play() {
@@ -227,6 +237,9 @@ play() {
 	#self explainatory
 	get_song_lyrics "$id" &
 
+	#start the presence
+	pgrep -f "nc -U $discord_ipc" > /dev/null || start_rich_presence &
+
 	#update the discord rich presence, requires client id
 	update_rich_presence "$title" "$id" "$duration" &
 
@@ -243,7 +256,7 @@ search_play() {
 	[ -z "$query" ] && notify-send "Err.. Search query empty" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && exit 1
 
 	#storing context
-	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20231010.05.00"}}' >"$logdir/context"
+	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240226.01.00"}}' >"$logdir/context"
 	#extracting your cookies so that the song list are according to your taste
 	get_cookies
 
@@ -292,7 +305,7 @@ play_next() {
 
 menu() {
 	if command -v bemenu >/dev/null; then
-		bemenu --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 3 -p "$1" -l 25 -I "${2:-0}" -P ">>"
+		bemenu --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 3 -p "$1" -l 25 -I "${2:-0}" -P ">>" --bdr="#$GLOBAL_ACCENT" --tf="#$GLOBAL_ACCENT" --hf="#$GLOBAL_ACCENT"
 	else
 		fzf --prompt="$1" --height=25 --reverse --border=horizontal --header="${2:-0}" --marker=">>"
 	fi
@@ -301,11 +314,14 @@ menu() {
 logdir="/tmp/${0##*/}"
 socket="$logdir/${0##*/}-mpvsocket"
 discord_ipc="${XDG_RUNTIME_DIR}/discord-ipc-0"
+handshook="$logdir/handshook"
+presence="$logdir/${0##*/}-presence"
 presence_client_id="1165951947245879316"
 base_url="https://music.youtube.com"
 [ -d "$logdir" ] || mkdir "$logdir"
+[ -p "$presence" ] || mkfifo "$presence"
 cookie="$logdir/cookies"
-agent="Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36,gzip(gfe)"
 
 #call this script by script-name "function_name" "query"
 [ -z "$1" ] && help "$@"
