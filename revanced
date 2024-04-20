@@ -26,7 +26,7 @@ download_keystore() {
 }
 
 tmp_dir="${TMPDIR:-/tmp}/revanced"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
 apk_provider_url="https://www.apkmirror.com"
 date=$(date +%F)
 rv_cli="cli-$date.jar"
@@ -58,7 +58,7 @@ case $app in
 	youtube)
 		arch="universal"
 		[ -z "$2" ] && version=$(curl -s "https://api.revanced.app/v2/patches/latest" | sed -nE 's|.*youtube","versions":\[[0-9\.",]*,"([^\}]*)"\].*|\1|p') || version=$2
-		exclude_patch_list="always-autorepeat,disable-auto-captions,disable-zoom-haptics,enable-debugging,external-downloads,hide-autoplay-button,hide-captions-button,hide-cast-button,hide-floating-microphone-button,hide-layout-components,hide-'load-more'-button,hide-player-buttons,custom-player-overlay-opacity,hide-seekbar,hide-timestamp,hide-video-action-buttons,navigation-buttons,player-flyout-menu,remove-player-controls-background,spoof-app-version,swipe-controls"
+		exclude_patch_list="always-repeat,disable-auto-captions,disable-zoom-haptics,enable-debugging,downloads,hide-autoplay-button,hide-captions-button,hide-cast-button,hide-floating-microphone-button,hide-layout-components,hide-'load-more'-button,hide-player-buttons,custom-player-overlay-opacity,hide-seekbar,hide-timestamp,hide-video-action-buttons,navigation-buttons,player-flyout-menu,remove-player-controls-background,spoof-app-version,swipe-controls"
 		out="yt-revanced-$version.apk"
 		;;
 	youtube-music)
@@ -105,4 +105,4 @@ info "All listed Patches Excluded"
 info "Patching $app-$version.apk.."
 
 #shellcheck disable=SC2086
-java -jar "$tmp_dir/$rv_cli" patch --patch-bundle "$tmp_dir/$rv_patch" --merge "$tmp_dir/$rv_inte" --out "$HOME/$out" $keystore --resource-cache "$tmp_dir/revanced-resource-cache" "$tmp_dir/$app-$version.apk" $exclude_patches
+java -jar "$tmp_dir/$rv_cli" patch --patch-bundle "$tmp_dir/$rv_patch" --merge "$tmp_dir/$rv_inte" --out "$HOME/$out" $keystore -t "$tmp_dir/revanced-resource-cache" "$tmp_dir/$app-$version.apk" $exclude_patches

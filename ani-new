@@ -1,12 +1,11 @@
 #!/bin/sh
 
 allanime_curl() {
-	curl -e "https://allanime.to" -sL AES256-SHA256 -G "https://api.${domain}/api" -A "$agent" --data-urlencode "$1" --data-urlencode "$2"
+	curl -e "https://allanime.to" -sL -G "https://api.${domain}/api" -A "$agent" --data-urlencode "$1" --data-urlencode "$2"
 }
 
 domain="allanime.day"
-random_no=$(head /dev/urandom | tr -dc '7-9' | cut -c1)
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/11${random_no}.0.0.0 Safari/537.36"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12$(head /dev/urandom | tr -dc '0-3' | cut -c1).0.0.0 Safari/537.36"
 debug=$2
 
 case $(uname -o) in
@@ -29,7 +28,7 @@ trap "exit 0" INT HUP
 info_$os "Parsing $domain.. Please wait..."
 
 #shellcheck disable=SC2016
-[ -z "$1" ] && url=$(allanime_curl 'query=query($search: SearchInput $limit: Int $page: Int $translationType: VaildTranslationTypeEnumType $countryOrigin: VaildCountryOriginEnumType) { shows( search: $search limit: $limit page: $page translationType: $translationType countryOrigin: $countryOrigin ) {edges { _id name lastEpisodeInfo __typename}}}' 'variables={"search":{"sortBy":"Recent","allowAdult":true,"allowUnknown":true},"limit":40,"page":1,"translationType":"sub","countryOrigin":"JP"}' | sed 's|Show|\n|g' | sed -nE 's|.*_id":"([^"]*)","name":"([^"]*)".*sub":\{"episodeString":"([^"]*)".*|\1\t\2 Episode \3|p' | menu_$os "Select Anime: " '--with-nth 2.. -m' | tr ':' ' ' | tr -s ' ') || url=$(printf "%s" "$1" | sed -nE 's|.*/bangumi/([^/]*)/([^/]*)/p-([^-]*)-sub|\1\t\2 Episode \3|p')
+[ -z "$1" ] && url=$(allanime_curl 'query=query($search: SearchInput $limit: Int $page: Int $translationType: VaildTranslationTypeEnumType $countryOrigin: VaildCountryOriginEnumType) { shows( search: $search limit: $limit page: $page translationType: $translationType countryOrigin: $countryOrigin ) {edges { _id name lastEpisodeInfo __typename}}}' 'variables={"search":{"sortBy":"Recent","allowAdult":true,"allowUnknown":true},"limit":40,"page":1,"translationType":"sub","countryOrigin":"JP"}' | sed 's|__typename|\n|g' | sed -nE 's|.*_id":"([^"]*)","name":"([^"]*)".*sub":\{"episodeString":"([^"]*)".*|\1\t\2 Episode \3|p' | menu_$os "Select Anime: " '--with-nth 2.. -m' | tr ':' ' ' | tr -s ' ') || url=$(printf "%s" "$1" | sed -nE 's|.*/bangumi/([^/]*)/([^/]*)/p-([^-]*)-sub|\1\t\2 Episode \3|p')
 
 [ -z "$url" ] && error_$os "No anime selected" && exit 0
 

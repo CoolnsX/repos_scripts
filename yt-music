@@ -64,6 +64,13 @@ cleanup_shit() {
 }
 
 get_cookies() {
+	# the user has firefox installed
+	if [ ! -f "$HOME/.config/google-chrome/Default/Cookies" ];then
+		cp "$(find "$HOME/.mozilla" -type f -iname 'cookies.sqlite' | head -1)" "$logdir/cookies.sqlite"
+		sqlite3 "$logdir/cookies.sqlite" "SELECT name, value FROM moz_cookies WHERE host='.youtube.com' and name NOT like 'ST-%';" | tr '|\n' '=;' > "$cookie"
+		rm "$logdir/cookies.sqlite"
+		return 0
+	fi
 	for i in $(sqlite3 "$HOME/.config/google-chrome/Default/Cookies" "SELECT name,REPLACE(base64(SUBSTR(encrypted_value,4)),CHAR(10),'') FROM cookies WHERE host_key='.youtube.com';"); do
 		printf "%s=%s; " "$(printf '%s' "$i" | cut -d'|' -f1)" "$(printf '%s' "$i" | cut -d'|' -f2 | base64 -d | openssl enc -d -aes-128-cbc -K fd621fe5a2b402539dfa147ca9272778 -iv 20202020202020202020202020202020)"
 	done >"$cookie"
@@ -164,24 +171,18 @@ start_rich_presence() {
 update_rich_presence() {
 	title=$1
 	id=$2
-	dur=$3
-	start=$(date +%s)
-	payload='{"cmd": "SET_ACTIVITY", "args": {"activity": {"details": "'$(printf "%s" "$title" | sed 's|[^-]*$||;s|-$||;s| $||;s|^ ||')'", "state": "'$(printf "%s" "$title" | sed 's_.* - __;s| $||')'", "timestamps": {"start": '"$start"',"end": '"$((start + dur))"'}, "assets": {"large_image": "https://i.ytimg.com/vi/'$id'/mqdefault.jpg","large_text":"Checkmate Premium Users"},"buttons": [{"label":"Listen Song", "url": "https://music.youtube.com/watch?v='$id'"}]},"pid":786}, "nonce": "1"}' #pid needs to be set and constant so discord knows which application to update
-	if [ -e "$handshook" ];then
-		set_activity "$payload" > "$presence"
-	else
-		{
-			#handshake
-			handshake='{"v":1,"client_id":"'$presence_client_id'"}'
-			# handshake with opcode
-			printf "\\000\\000\\000\\000\\$(printf "%03o" "${#handshake}")\\000\\000\\000%s" "$handshake"
-
-			#wait for response which comes within 1 second(max 2 seconds)
-			sleep 2
-			set_activity "$payload"
-		} > "$presence"
+	#dur=$3
+	#start=$(date +%s)
+	#payload='{"cmd": "SET_ACTIVITY", "args": {"activity": {"details": "'$(printf "%s" "$title" | sed 's|[^-]*$||;s|-$||;s| $||;s|^ ||')'", "state": "'$(printf "%s" "$title" | sed 's_.* - __;s| $||')'", "timestamps": {"start": '"$start"',"end": '"$((start + dur))"'}, "assets": {"large_image": "https://i.ytimg.com/vi/'$id'/mqdefault.jpg","large_text":"Checkmate Premium Users"},"buttons": [{"label":"Listen Song", "url": "https://music.youtube.com/watch?v='$id'"}]},"pid":786}, "nonce": "1"}' #pid needs to be set and constant so discord knows which application to update
+	payload='{"cmd": "SET_ACTIVITY", "args": {"activity": {"details": "'$(printf "%s" "$title" | sed 's|[^-]*$||;s|-$||;s| $||;s|^ ||')'", "state": "'$(printf "%s" "$title" | sed 's_.* - __;s| $||')'", "assets": {"large_image": "https://i.ytimg.com/vi/'$id'/mqdefault.jpg","large_text":"Checkmate Premium Users","small_image":"https://upload.wikimedia.org/wikipedia/commons/7/73/Mpv_logo_%28official%29.png"},"buttons": [{"label":"Listen Song", "url": "https://music.youtube.com/watch?v='$id'"}]},"pid":786}, "nonce": "'$(date +%s%N)'"}' #pid needs to be set and constant so discord knows which application to update
+	if [ ! -e "$handshook" ];then
+		handshake='{"v":1,"client_id":"'$presence_client_id'"}'
+		# handshake with opcode
+		printf "\\000\\000\\000\\000\\$(printf "%03o" "${#handshake}")\\000\\000\\000%s" "$handshake" > "$presence"
+		sleep 2
 		touch "$handshook"
 	fi
+	set_activity "$payload" > "$presence"
 }
 
 play() {
@@ -238,7 +239,7 @@ play() {
 	get_song_lyrics "$id" &
 
 	#start the presence
-	pgrep -f "nc -U $discord_ipc" > /dev/null || start_rich_presence &
+	pgrep -f "nc -U $discord_ipc" > /dev/null || setsid -f "$0" start_rich_presence
 
 	#update the discord rich presence, requires client id
 	update_rich_presence "$title" "$id" "$duration" &
@@ -305,7 +306,7 @@ play_next() {
 
 menu() {
 	if command -v bemenu >/dev/null; then
-		bemenu --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 3 -p "$1" -l 25 -I "${2:-0}" -P ">>" --bdr="#$GLOBAL_ACCENT" --tf="#$GLOBAL_ACCENT" --hf="#$GLOBAL_ACCENT"
+		bemenu --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 3 -p "$1" -l 26 -I "${2:-0}" -P ">>" --bdr="#$GLOBAL_ACCENT" --tf="#$GLOBAL_ACCENT" --hf="#$GLOBAL_ACCENT"
 	else
 		fzf --prompt="$1" --height=25 --reverse --border=horizontal --header="${2:-0}" --marker=">>"
 	fi
@@ -321,7 +322,7 @@ base_url="https://music.youtube.com"
 [ -d "$logdir" ] || mkdir "$logdir"
 [ -p "$presence" ] || mkfifo "$presence"
 cookie="$logdir/cookies"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36,gzip(gfe)"
+agent="Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0"
 
 #call this script by script-name "function_name" "query"
 [ -z "$1" ] && help "$@"
