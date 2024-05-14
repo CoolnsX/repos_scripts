@@ -26,11 +26,11 @@ esac
 . $script_dir/.functions
 [ -z "$*" ] && search_$os "Search Torrent: " || query=$*
 [ -z "$query" ] && exit 0
-[ "$os" = "linux" ] && tmp=$(notify-send "Searching query" -p)
+[ "$os" = "linux" ] && tmp=$(notify-send -e "Searching query" -p)
 query=$(printf "%s" "$query" | tr " " "+")
 data=$(curl -s "https://apibay.org/q.php?q=$query" | tee data | sed 's/},/}\n/g' | tr -d "[]")
 
-[ "$os" = "linux" ] && notify-send "tidying up data" -r $tmp
+[ "$os" = "linux" ] && notify-send -e "tidying up data" -r $tmp
 size=$(printf "%s" "$data" | sed -nE 's/.*name.*size":"(.*)",.*user.*/\1/p')
 name_seed=$(printf "%s" "$data" | sed -nE 's/.*name":"(.*)","info_hash.*seeders":"(.*)",.*num.*/\2] \1/p')
 sel=$(display "$size" "$name_seed" | menu_$os "Select Torrent: " | cut -d" " -f3-)

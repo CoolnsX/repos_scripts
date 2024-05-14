@@ -32,7 +32,7 @@ info_droid() {
 }
 
 info_linux() {
-	notify-send "$1" -r '10' -i "$2" $3
+	notify-send -e "$1" -r '10' -i "$2" $3
 }
 
 error_droid() {
@@ -40,7 +40,7 @@ error_droid() {
 }
 
 error_linux() {
-	notify-send -u "critical" "$1" -r '10'
+	notify-send -e -u "critical" "$1" -r '10'
 }
 
 player_droid() {

@@ -15,7 +15,7 @@ notify_droid() {
 }
 
 notify_linux() {
-	notify-send "$1" -h "string:x-canonical-private-synchronous:${0##*/}"
+	notify-send -e "$1" -h "string:x-canonical-private-synchronous:${0##*/}"
 }
 
 conv_to_octal(){

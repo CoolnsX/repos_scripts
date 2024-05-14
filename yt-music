@@ -93,7 +93,8 @@ get_music_list() {
 	\"context\": $(cat "$logdir/context")
 	}"
 	next_data=$(get_data "next" "$json_next" | sed 's/playlistPanelVideoRenderer/\n/g;s/hasPersistentPlaylistPanel/\n/g' | sed -nE 's|.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*|\1 - \2\t\3|p;s|.*nextRadioContinuationData":\{([^,]*).*|\1,|p')
-	printf '%s' "$next_data" | sed -e "$(cut -f2 "/tmp/yt-music/next" | sed 's|^|/|g;s|$|/d|g')" -e '/"continuation"/d' >>"$logdir/next"
+	#shellcheck disable=SC1091,SC2094
+	printf '%s' "$next_data" | sed -e "$(cut -f2 "$logdir/next" | sed 's|^|/|g;s|$|/d|g')" -e '/"continuation"/d' >>"$logdir/next"
 	printf '%s' "$next_data" | sed -n '/"continuation"/p' >"$logdir/continue_token"
 }
 
@@ -141,7 +142,10 @@ loop() {
 			[ -n "$(cat "$logdir/next")" ]
 			play "$(sed -n "$((i += 1))p" "$logdir/next")" "$1"
 			printf '%s' "$i" >"$logdir/counter"
-			tail -1 "$logdir/next" | grep -q "$(cut -d'>' -f2 <"$logdir/current")" && get_music_list
+			# shellcheck source=/tmp/yt-music/current
+			# shellcheck disable=SC1091
+			. "$logdir/current"
+			tail -1 "$logdir/next" | grep -q "$ID" && get_music_list
 		fi
 	done
 	cleanup_shit
@@ -194,7 +198,7 @@ play() {
 
 	#get song's audio url
 	random_no=$(head /dev/urandom | tr -dc '0-4' | cut -c1)
-	andy_yt_ver="6.26.50"
+	andy_yt_ver="6.50.53"
 	extra_up=$((random_no > 1))
 	droid_agent="com.google.android.apps.youtube.music/$andy_yt_ver (Linux; U; Android 1$random_no) gzip"
 	json="{
@@ -227,10 +231,10 @@ play() {
 		printf "Audio URL >> %s\n" "$audio_url"
 	fi
 
-	curl -s "https://i.ytimg.com/vi/$id/hqdefault.jpg" -o - | convert - -crop 270x270+105+45 "$logdir/default.jpg" && notify-send -h "string:x-canonical-private-synchronous:${0##*/}" -i "$logdir/default.jpg" "Now Playing" "$title" -t 5000
+	curl -s "https://i.ytimg.com/vi/$id/hqdefault.jpg" -o - | convert - -crop 270x270+105+45 "$logdir/default.jpg" && notify-send -e -h "string:x-canonical-private-synchronous:${0##*/}" -i "$logdir/default.jpg" "Now Playing" "$title" -t 5000
 	pgrep -f "$socket" >/dev/null || (setsid -f mpv --really-quiet --input-ipc-server="$socket" --idle --quiet >/dev/null && sleep 1)
 	printf '{"command":["loadfile","%s","replace"]}\n' "$audio_url" | socat - "$socket"
-	printf "currently playing : %s >%s\n" "$title" "$id" >"$logdir/current"
+	printf "SONG='%s'\nARTIST='%s'\nID='%s'" "$(printf '%s' "$title" | sed 's|[^-]*$||g;s|-$||g;s| $||g;s|^ ||g')" "$(printf '%s' "$title" | sed 's_.* - __;s| $||')" "$id" >"$logdir/current"
 
 	#required for discord rich presence to set end timestamp
 	duration=$(printf '%s' "$audio_url" | sed -nE 's|.*&dur=([^\.]*).*|\1|p')
@@ -254,10 +258,10 @@ search_play() {
 	#run this if u r starting the script first time like this
 	#call this by "script-name" "search_play" [ search_query | youtube_id by prefixing with ID:<youtube_id> | youtube url ]
 	[ -z "$1" ] && query=$(: | menu "Yt-music [Search]:" "" "60") || query="$1"
-	[ -z "$query" ] && notify-send "Err.. Search query empty" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && exit 1
+	[ -z "$query" ] && notify-send -e "Err.. Search query empty" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && exit 1
 
 	#storing context
-	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240226.01.00"}}' >"$logdir/context"
+	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240501.01.00"}}' >"$logdir/context"
 	#extracting your cookies so that the song list are according to your taste
 	get_cookies
 
@@ -294,7 +298,10 @@ play_next() {
 		: $((i += 1))
 		play "$(sed -n "$((i += 1))p" "$logdir/next")" "$1"
 	else
-		notify-send -h "string:x-canonical-private-synchronous:${0##*/}" -i "$logdir/default.jpg" "$(cut -d">" -f1 "$logdir/current" | tr ':' '\n')"
+		#shellcheck source=/tmp/yt-music/current
+		#shellcheck disable=SC1091
+		[ -f "$logdir/current" ] && . "$logdir/current"
+		notify-send -e -h "string:x-canonical-private-synchronous:${0##*/}" -i "$logdir/default.jpg" "Listening @ $(basename "$0")" "$SONG - $ARTIST"
 		next=$(nl -n'ln' -v0 "$logdir/next" | sed "s/^$i /& /" | menu "YT-music [play-next]: " "$i")
 		[ -z "$next" ] && return 0
 		i=$(printf '%s' "$next" | sed 's///g' | cut -f1 | tr -d ' ')
@@ -322,7 +329,7 @@ base_url="https://music.youtube.com"
 [ -d "$logdir" ] || mkdir "$logdir"
 [ -p "$presence" ] || mkfifo "$presence"
 cookie="$logdir/cookies"
-agent="Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
 #call this script by script-name "function_name" "query"
 [ -z "$1" ] && help "$@"
