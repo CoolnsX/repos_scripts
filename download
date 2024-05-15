@@ -64,7 +64,7 @@ instagram() {
 
 #main
 link="$1"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12$(head /dev/urandom | tr -dc '0-3' | cut -c1).0.0.0 Safari/537.36"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12$(head /dev/urandom | tr -dc '2-5' | cut -c1).0.0.0 Safari/537.36"
 
 case $(uname -o) in
 	*ndroid*)

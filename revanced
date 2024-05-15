@@ -26,7 +26,7 @@ download_keystore() {
 }
 
 tmp_dir="${TMPDIR:-/tmp}/revanced"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12$(head /dev/urandom | tr -dc '2-5' | cut -c1).0.0.0 Safari/537.36"
 apk_provider_url="https://www.apkmirror.com"
 date=$(date +%F)
 rv_cli="cli-$date.jar"

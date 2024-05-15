@@ -2,7 +2,7 @@
 
 domain="allanime.day"
 run_file="${TMPDIR:-/tmp}/${0##*/}_run"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12$(head /dev/urandom | tr -dc '0-3' | cut -c1).0.0.0 Safari/537.36"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12$(head /dev/urandom | tr -dc '2-5' | cut -c1).0.0.0 Safari/537.36"
 debug=$2
 
 \cat << EOF > "$run_file"
@@ -34,9 +34,12 @@ esac
 trap "exit 0" INT HUP
 info_$os "Parsing $domain.. Please wait..."
 
-[ -z "$1" ] && url=$(search | (
-	[ "$os" != "linux" ] && fzf --bind="change:reload:$run_file {q} 1" --prompt="Select Anime: " --with-nth 2.. -m || menu_$os "Select Anime: "
-) | tr ':' ' ' | tr -s ' ') || url=$(printf "%s" "$1" | sed -nE 's|.*/bangumi/([^/]*)/([^/]*)/p-([^-]*)-sub|\1\t\2 Episode \3|p')
+url=$(search | (
+	case "$os" in
+		linux) menu_$os "Select Anime: " ;;
+		*) fzf --bind="change:reload:$run_file {q} 1" --prompt="Select Anime: " --with-nth 2.. -m ;;
+	esac
+) | tr ':' ' ' | tr -s ' ') || true
 
 [ -z "$url" ] && error_$os "No anime selected" && exit 0
 
