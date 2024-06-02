@@ -11,25 +11,23 @@ EOF
 
 chmod +x "$run_file"
 
-# shellcheck source=/tmp/ani-new_run
+# shellcheck disable=SC1091,SC1090
 . "$run_file"
 
 case $(uname -o) in
 	*ndroid*)
 		os="droid"
 		download_dir="/sdcard"
-		script_dir="$HOME/.shortcuts"
 		;;
 	*)
 		os="linux"
 		download_dir="$HOME/Downloads"
 		[ -t 1 ] || terminal="${TERMINAL:-foot} -e"
-		script_dir="$HOME/repos_scripts"
 		;;
 esac
 
-# shellcheck source=./.functions
-. "$script_dir/.functions"
+# shellcheck disable=SC1091,SC1090
+. "$(dirname "$0")"/.functions
 
 trap "exit 0" INT HUP
 info_$os "Parsing $domain.. Please wait..."

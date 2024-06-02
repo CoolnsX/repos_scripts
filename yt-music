@@ -198,7 +198,7 @@ play() {
 
 	#get song's audio url
 	random_no=$(head /dev/urandom | tr -dc '0-4' | cut -c1)
-	andy_yt_ver="6.50.53"
+	andy_yt_ver="7.03.52"
 	extra_up=$((random_no > 1))
 	droid_agent="com.google.android.apps.youtube.music/$andy_yt_ver (Linux; U; Android 1$random_no) gzip"
 	json="{
@@ -329,7 +329,7 @@ base_url="https://music.youtube.com"
 [ -d "$logdir" ] || mkdir "$logdir"
 [ -p "$presence" ] || mkfifo "$presence"
 cookie="$logdir/cookies"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 
 #call this script by script-name "function_name" "query"
 [ -z "$1" ] && help "$@"

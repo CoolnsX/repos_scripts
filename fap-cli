@@ -30,7 +30,7 @@ err() {
 }
 
 get_query() {
-	[ -z "$*" ] && printf "${c_green}Search>${c_reset} " && read -r query || query=$*
+	[ -z "$*" ] && printf "%sSearch>%s " "$c_green" "$c_reset" && read -r query || query=$*
 	query=$(printf "%s" "$query" | tr " " "+")
 }
 
@@ -129,7 +129,7 @@ while getopts 'dhp:v' OPT; do
 		v)
 			player_fn="vlc"
 			;;
-		* | h)
+		*)
 			help_text
 			exit 0
 			;;

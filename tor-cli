@@ -1,17 +1,10 @@
 #!/bin/sh
 
-case $(uname -o) in
-	*ndroid*)
-		os="droid"
-		script_dir="$HOME/.shortcuts"
-		;;
-	*)
-		os="linux"
-		script_dir="$HOME/repos_scripts"
-		;;
-esac
+os="linux"
+uname -o | grep -q "ndroid" && os="droid"
+# shellcheck disable=SC1091,SC1090
+. "$(dirname "$0")"/.functions
 
-. $script_dir/.functions
 [ -z "$*" ] && search_$os "Search Torrent: " || query=$*
 [ -z "$query" ] && exit 0
 query=$(printf "%s" "$query" | tr ' ' '+')

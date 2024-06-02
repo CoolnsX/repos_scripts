@@ -8,7 +8,7 @@ info() {
 }
 
 menu() {
-	bemenu --fn 'IBM Plex Sans 15' -i -c -W "0.${2:-5}" -B 3 -p "$1" -l 26 --accept-single
+	bemenu --fn 'IBM Plex Sans 15' -i -c -W "0.${2:-5}" -B 3 -p "$1" -l 26 --accept-single --bdr="#$GLOBAL_ACCENT" --tf="#$GLOBAL_ACCENT" --hf="#$GLOBAL_ACCENT"
 }
 
 compress() {

@@ -20,11 +20,11 @@ search_linux() {
 }
 
 torrent_linux() {
-	setsid -f "$TERMINAL" -e "$HOME/repos_scripts/torrent" "$1"
+	setsid -f "$TERMINAL" -e "$(dirname "$0")/torrent" "$1"
 }
 
 torrent_droid() {
-	"$HOME/.shortcuts/torrent" "$1"
+	"$(dirname "$0")/torrent" "$1"
 }
 
 info_droid() {
@@ -45,6 +45,7 @@ error_linux() {
 
 player_droid() {
 	am start --user 0 -a android.intent.action.VIEW -d "$1" -n is.xyz.mpv/.MPVActivity >/dev/null 2>&1
+	#am start --user 0 -a android.intent.action.VIEW -d "$1" -n org.videolan.vlc/org.videolan.vlc.gui.video.VideoPlayerActivity -e "title" "$2" >/dev/null 2>&1
 }
 
 player_linux() {
