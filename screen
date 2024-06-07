@@ -71,7 +71,7 @@ stop() {
 			info "nextcloud" "10000" "Uploading to NextCloud"
 			curl -u "$NC_USER:$NC_TOKEN" -s "$NC_URL/remote.php/dav/files/${NC_USER}${NC_SHARE_PATH}/$cloudname" -T "$tmp_file" || (info "" "2000" "Unable to upload to Nextcloud,moved the file from temp to your home folder as $cloudname" && mv "$tmp_file" "$HOME/$cloudname" && return 1)
 			info "nextcloud" "" "Getting File Id"
-			file_id=$(curl -u "$NC_USER:$NC_TOKEN" -s "$NC_URL/remote.php/dav/files/${NC_USER}${NC_SHARE_PATH}/$cloudname" -X 'PROPFIND' -b "$NC_COOKIES" -H "Requesttoken: $NC_TOKEN" --data-raw '<?xml version="1.0"?><d:propfind  xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns" xmlns:ocs="http://open-collaboration-services.org/ns"><d:prop><oc:fileid /><nc:system-tags /></d:prop></d:propfind>' | sed 's|d:response|\n|g' | sed -nE "s|.*<d:href>.*$cloudname.*<oc:fileid>([^<]*).*|\1|p" | head -1)
+			file_id=$(curl -u "$NC_USER:$NC_TOKEN" -s "$NC_URL/remote.php/dav/files/${NC_USER}${NC_SHARE_PATH}/$cloudname" -X 'PROPFIND' --data-raw '<?xml version="1.0"?><d:propfind  xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns" xmlns:ocs="http://open-collaboration-services.org/ns"><d:prop><oc:fileid /><nc:system-tags /></d:prop></d:propfind>' | sed 's|d:response|\n|g' | sed -nE "s|.*<d:href>.*$cloudname.*<oc:fileid>([^<]*).*|\1|p" | head -1)
 			[ -z "$file_id" ] && info "" "2000" "File not uploaded correctly,moved the file from temp to your home folder as $cloudname" && mv "$tmp_file" "$HOME/$cloudname" && return 1
 			info "nextcloud" "10000" "Generating Share Link"
 			expire_date=$(date -d "+ 1 month" +"%Y-%m-%d") # link won't available after 1 month

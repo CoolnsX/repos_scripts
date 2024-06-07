@@ -125,7 +125,7 @@ get_song_lyrics() {
 		  },
 		  \"browseId\": \"$browseId\"
   		}"
-		get_data "browse" "$json_lyrics" "$droid_agent" "AIzaSyAOghZGza2MQSZkY_zfZ370N-PUdXEo8AI" | sed 's/metadata"/\n/g' | sed -nE 's|.*lyricLine":"([^"]*)","cueRange".*"endTimeMilliseconds":"([^"]*)".*|\2\t\1|p' >"$logdir/lyrics"
+		get_data "browse" "$json_lyrics" "$droid_agent" "AIzaSyAOghZGza2MQSZkY_zfZ370N-PUdXEo8AI" | sed 's/metadata"/\n/g' | sed -nE 's|.*lyricLine":"([^"]*)","cueRange".*"endTimeMilliseconds":"([^"]*)".*|\2\t\1|p' | sed 's/\(\(\w\w*\W*\)\{10\}\)/\1\\n/g' >"$logdir/lyrics"
 	fi
 }
 
