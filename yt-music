@@ -329,7 +329,7 @@ base_url="https://music.youtube.com"
 [ -d "$logdir" ] || mkdir "$logdir"
 [ -p "$presence" ] || mkfifo "$presence"
 cookie="$logdir/cookies"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12$(head /dev/urandom | tr -dc '3-6' | cut -c1).0.0.0 Safari/537.36"
 
 #call this script by script-name "function_name" "query"
 [ -z "$1" ] && help "$@"
