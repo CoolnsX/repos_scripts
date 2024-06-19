@@ -98,11 +98,7 @@ play_link() {
 	[ -z "$video_link" ] && err "Video Url not found" && return 1
 
 	info "\n$video_link\n"
-	if [ "$is_download" -eq "0" ]; then
-		stream "$video_link" "$display"
-	else
-		download "$video_link" "$display"
-	fi
+	([ "$is_download" -eq "0" ] && stream "$video_link" "$display") || download "$video_link" "$display"
 	[ "$noofeps" -eq 1 ] && exit 0
 }
 
