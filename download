@@ -18,24 +18,24 @@ notify_linux() {
 	notify-send -e "$1" -h "string:x-canonical-private-synchronous:${0##*/}"
 }
 
-conv_to_octal(){
+conv_to_octal() {
 	base=$2
 	i=0
 	res=0
 	for key in $(printf "%s" "$1" | rev | sed 's/./&\n/g'); do
-		if [ "$key" -ne 0 ];then 
+		if [ "$key" -ne 0 ]; then
 			j=$i
 			tmp=1
-			while [ "$j" -ne 0 ];do 
+			while [ "$j" -ne 0 ]; do
 				: $((tmp *= base))
-				: $((j-=1))
+				: $((j -= 1))
 			done
 			res=$((res + (key * tmp)))
 		fi
-		: $((i+=1))
+		: $((i += 1))
 	done
-	
-	res=$(printf '%03o' "$((res-${3}))")
+
+	res=$(printf '%03o' "$((res - ${3}))")
 	#shellcheck disable=SC2059
 	printf "\\$res" | sed 's/[\/&]/\\&/g'
 }
@@ -44,22 +44,22 @@ instagram() {
 	info "Using Alternate Site" "Instagram" "$2"
 	sed_file="${TMPDIR:-/tmp}/${0##*/}-sed-file"
 	response=$(curl -s "https://snapinsta.app" -o /dev/null -c - | curl -s 'https://snapinsta.app/action2.php' -e 'https://snapinsta.app/' -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' -b - -F "url=$1" -F 'action=post' -F 'lang=' --compressed | sed -nE 's|.*\}\(([^\)]*)\).*|\1|p' | tr -d '"' | tr ',' '\n')
-	
+
 	n=$(printf "%s" "$response" | sed -n '3p')
 	t=$(printf "%s" "$response" | sed -n '4p')
 	e=$(printf "%s" "$response" | sed -n '5p')
-	printf '%s' "$n" | cut -c-"$e" | sed 's/./&\n/g' | tr -s '\n' | nl -nln -v0 | sed -nE 's|^([0-9]*)[[:space:]]*(.*)|s\/\2\/\1\/g|p' > "$sed_file"
-	printf 's/%s/\\n/g' "$(printf "%s" "$n" | cut -c"$((e+1))")" >> "$sed_file"
-	
+	printf '%s' "$n" | cut -c-"$e" | sed 's/./&\n/g' | tr -s '\n' | nl -nln -v0 | sed -nE 's|^([0-9]*)[[:space:]]*(.*)|s\/\2\/\1\/g|p' >"$sed_file"
+	printf 's/%s/\\n/g' "$(printf "%s" "$n" | cut -c"$((e + 1))")" >>"$sed_file"
+
 	data=$(printf "%s" "$response" | head -1 | sed -f "$sed_file" | sed -n '1200,$p')
-	
+
 	info "Decoding JS" "Instagram" "$2"
-	printf "" > "$sed_file"
+	printf "" >"$sed_file"
 	for num in $(printf "%s" "$data" | sort -u); do
-		printf 's/^%s$/%s/g\n' "$num" "$(conv_to_octal "$num" "$e" "$t")" >> "$sed_file" &
+		printf 's/^%s$/%s/g\n' "$num" "$(conv_to_octal "$num" "$e" "$t")" >>"$sed_file" &
 	done
 	wait
-	
+
 	video_url=$(printf "%s" "$data" | sed -f "$sed_file" -e 's/\\//g' | tr -d '\n' | sed -nE 's|.*a href="([^"]*)".*|\1|p')
 }
 
@@ -90,9 +90,9 @@ case "$link" in
 		res=0
 		enc_char="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 		table=$(printf "%s" "$enc_char" | sed 's/\(.\)/\1\n/g' | nl -v0 | tr '\t' ':' | tr -d ' ')
-		for key in $(printf "%s" "$id" | sed -e 's/\(.\)/\1\n/g');do 
-		    value=$(printf "%s" "$table" | sed -nE "s/([^:]*):$key/\1/p")
-		    res=$((res*64+value))
+		for key in $(printf "%s" "$id" | sed -e 's/\(.\)/\1\n/g'); do
+			value=$(printf "%s" "$table" | sed -nE "s/([^:]*):$key/\1/p")
+			res=$((res * 64 + value))
 		done
 
 		info "Fetching Video URL" "$app" "$id"

@@ -42,19 +42,8 @@ input() {
 	unset x
 }
 
-stream() {
-	case $player_fn in
-		vlc)	setsid -f "$player_fn" --http-referrer="$base_url" "$1" >/dev/null 2>&1 ;;
-		mpv)	setsid -f "$player_fn" "$1" --referrer="$base_url" --force-media-title="$2" >/dev/null 2>&1 ;;
-		mpv_android) am start --user 0 -a android.intent.action.VIEW -d "$1" -n is.xyz.mpv/.MPVActivity >/dev/null 2>&1 ;;
-		vlc_android) am start --user 0 -a android.intent.action.VIEW -d "$1" -n org.videolan.vlc/org.videolan.vlc.gui.video.VideoPlayerActivity -e "title" "$2" >/dev/null 2>&1 ;;
-	esac
-}
-
-
-
 download() {
-	info "Downloading $1" "34"
+	info "Downloading $2" "34"
 	case $1 in
 		*m3u8) $terminal hls -n 300 -ro "$download_dir/$2" "$1" ;;
 		*) $terminal aria2c --summary-interval=0 -x 16 -s 16 --referer="$base_url" "$1" -d "$download_dir" -o "$2.mp4" --download-result=hide ;;
@@ -63,14 +52,14 @@ download() {
 
 get_show() {
 	info "Searching query.." "34"
-	results=$(search | fzf --bind="change:reload:$run_file {q} 1" --prompt="Search: " )
+	results=$(search | fzf --bind="change:reload:$run_file {q} 1" --prompt="Search: ")
 	[ -z "$results" ] && err "No search results found" && exit 0
 	info ""
 	result=$(printf "%s" "$results" | fzf --layout="reverse" --border --height=10 -1)
 	[ -z "$result" ] && err "No hentai selected" && exit 0
 	info "selected $result\n" "35"
 	info "Fetching Episodes List.." "34"
-	ep_list=$(curl -sA "$agent" "$base_url/tvshows/$result/" | sed -nE 's_^[[:space:]]*<a href="https://hentaimama.io/(.*)/">.$_\1_p' | tac)
+	ep_list=$(curl -sA "$agent" "$base_url/tvshows/$result/" | sed -nE "s_^[[:space:]]*<a href=\"$base_url/(.*)/\">.\$_\1_p" | tac)
 	noofeps=$(printf "%s\n" "$ep_list" | wc -l)
 	ep_no=1
 	[ "$noofeps" -gt 1 ] && input "$noofeps"
@@ -98,7 +87,15 @@ play_link() {
 	[ -z "$video_link" ] && err "Video Url not found" && return 1
 
 	info "\n$video_link\n"
-	([ "$is_download" -eq "0" ] && stream "$video_link" "$display") || download "$video_link" "$display"
+
+	case $player_fn in
+		vlc) setsid -f "$player_fn" --http-referrer="$base_url" "$video_link" >/dev/null 2>&1 ;;
+		mpv) setsid -f "$player_fn" "$video_link" --referrer="$base_url" --force-media-title="$display" >/dev/null 2>&1 ;;
+		mpv_android) am start --user 0 -a android.intent.action.VIEW -d "$video_link" -n is.xyz.mpv/.MPVActivity >/dev/null 2>&1 ;;
+		vlc_android) am start --user 0 -a android.intent.action.VIEW -d "$video_link" -n org.videolan.vlc/org.videolan.vlc.gui.video.VideoPlayerActivity -e "title" "$video_link" >/dev/null 2>&1 ;;
+		download) $player_fn "$video_link" "$display" ;;
+	esac
+
 	[ "$noofeps" -eq 1 ] && exit 0
 }
 
@@ -124,8 +121,8 @@ case $(uname -o) in
 		;;
 esac
 
-\cat << EOF > "$run_file"
-search() { curl -s -A "$agent" "$base_url/?s=\$1" | sed -nE 's_^[[:space:]]*<a href="https://hentaimama.io/tvshows/(.*)/">.\$_\1_p'; }; [ -n "\$2" ] && search "\$1"
+\cat <<EOF >"$run_file"
+search() { curl -s -A "$agent" "$base_url/?s=\$1" | sed -nE 's_^[[:space:]]*<a href="$base_url/tvshows/(.*)/">.\$_\1_p'; }; [ -n "\$2" ] && search "\$1"
 EOF
 
 chmod +x "$run_file"
@@ -136,10 +133,10 @@ chmod +x "$run_file"
 while getopts 'dhp:v' OPT; do
 	case $OPT in
 		d)
-			is_download=1
+			player_fn="download"
 			;;
 		p)
-			is_download=1
+			player_fn="download"
 			download_dir=$OPTARG
 			;;
 		v)

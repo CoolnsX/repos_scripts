@@ -5,7 +5,7 @@ run_file="${TMPDIR:-/tmp}/${0##*/}_run"
 agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12$(head /dev/urandom | tr -dc '3-6' | cut -c1).0.0.0 Safari/537.36"
 debug=$2
 
-\cat << EOF > "$run_file"
+\cat <<EOF >"$run_file"
 search() { curl -e "https://allanime.to" -sL -G "https://api.${domain}/api" -A "$agent" --data-urlencode 'query=query(\$search: SearchInput \$limit: Int \$page: Int \$translationType: VaildTranslationTypeEnumType \$countryOrigin: VaildCountryOriginEnumType) { shows( search: \$search limit: \$limit page: \$page translationType: \$translationType countryOrigin: \$countryOrigin ) {edges { _id name lastEpisodeInfo __typename}}}' --data-urlencode 'variables={"search":{"sortBy":"Recent","allowAdult":true,"allowUnknown":true,"query":"'"\$1"'"},"limit":40,"page":1,"translationType":"sub","countryOrigin":"ALL"}' | sed 's|Show|\n|g' | sed 's|__typename|\n|g' | sed -nE 's|.*_id":"([^"]*)","name":"([^"]*)".*sub":\{"episodeString":"([^"]*)".*|\1\t\2 Episode \3|p'; }; [ -n "\$2" ] && search "\$1"
 EOF
 

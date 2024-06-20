@@ -65,9 +65,9 @@ cleanup_shit() {
 
 get_cookies() {
 	# the user has firefox installed
-	if [ ! -f "$HOME/.config/google-chrome/Default/Cookies" ];then
+	if [ ! -f "$HOME/.config/google-chrome/Default/Cookies" ]; then
 		cp "$(find "$HOME/.mozilla" -type f -iname 'cookies.sqlite' | head -1)" "$logdir/cookies.sqlite"
-		sqlite3 "$logdir/cookies.sqlite" "SELECT name, value FROM moz_cookies WHERE host='.youtube.com' and name NOT like 'ST-%';" | tr '|\n' '=;' > "$cookie"
+		sqlite3 "$logdir/cookies.sqlite" "SELECT name, value FROM moz_cookies WHERE host='.youtube.com' and name NOT like 'ST-%';" | tr '|\n' '=;' >"$cookie"
 		rm "$logdir/cookies.sqlite"
 		return 0
 	fi
@@ -168,8 +168,8 @@ set_activity() {
 }
 
 start_rich_presence() {
-	rm -f "$handshook" > /dev/null
-	tail -f "$presence" | nc -U "$discord_ipc" > "/tmp/ipclog"
+	rm -f "$handshook" >/dev/null
+	tail -f "$presence" | nc -U "$discord_ipc" >"/tmp/ipclog"
 }
 
 update_rich_presence() {
@@ -179,14 +179,14 @@ update_rich_presence() {
 	#start=$(date +%s)
 	#payload='{"cmd": "SET_ACTIVITY", "args": {"activity": {"details": "'$(printf "%s" "$title" | sed 's|[^-]*$||;s|-$||;s| $||;s|^ ||')'", "state": "'$(printf "%s" "$title" | sed 's_.* - __;s| $||')'", "timestamps": {"start": '"$start"',"end": '"$((start + dur))"'}, "assets": {"large_image": "https://i.ytimg.com/vi/'$id'/mqdefault.jpg","large_text":"Checkmate Premium Users"},"buttons": [{"label":"Listen Song", "url": "https://music.youtube.com/watch?v='$id'"}]},"pid":786}, "nonce": "1"}' #pid needs to be set and constant so discord knows which application to update
 	payload='{"cmd": "SET_ACTIVITY", "args": {"activity": {"details": "'$(printf "%s" "$title" | sed 's|[^-]*$||;s|-$||;s| $||;s|^ ||')'", "state": "'$(printf "%s" "$title" | sed 's_.* - __;s| $||')'", "assets": {"large_image": "https://i.ytimg.com/vi/'$id'/mqdefault.jpg","large_text":"Checkmate Premium Users","small_image":"https://upload.wikimedia.org/wikipedia/commons/7/73/Mpv_logo_%28official%29.png"},"buttons": [{"label":"Listen Song", "url": "https://music.youtube.com/watch?v='$id'"}]},"pid":786}, "nonce": "'$(date +%s%N)'"}' #pid needs to be set and constant so discord knows which application to update
-	if [ ! -e "$handshook" ];then
+	if [ ! -e "$handshook" ]; then
 		handshake='{"v":1,"client_id":"'$presence_client_id'"}'
 		# handshake with opcode
-		printf "\\000\\000\\000\\000\\$(printf "%03o" "${#handshake}")\\000\\000\\000%s" "$handshake" > "$presence"
+		printf "\\000\\000\\000\\000\\$(printf "%03o" "${#handshake}")\\000\\000\\000%s" "$handshake" >"$presence"
 		sleep 2
 		touch "$handshook"
 	fi
-	set_activity "$payload" > "$presence"
+	set_activity "$payload" >"$presence"
 }
 
 play() {
@@ -198,7 +198,7 @@ play() {
 
 	#get song's audio url
 	random_no=$(head /dev/urandom | tr -dc '0-4' | cut -c1)
-	andy_yt_ver="7.03.52"
+	andy_yt_ver="7.05.54"
 	extra_up=$((random_no > 1))
 	droid_agent="com.google.android.apps.youtube.music/$andy_yt_ver (Linux; U; Android 1$random_no) gzip"
 	json="{
@@ -243,7 +243,7 @@ play() {
 	get_song_lyrics "$id" &
 
 	#start the presence
-	pgrep -f "nc -U $discord_ipc" > /dev/null || setsid -f "$0" start_rich_presence
+	pgrep -f "nc -U $discord_ipc" >/dev/null || setsid -f "$0" start_rich_presence
 
 	#update the discord rich presence, requires client id
 	update_rich_presence "$title" "$id" "$duration" &
@@ -329,7 +329,7 @@ base_url="https://music.youtube.com"
 [ -d "$logdir" ] || mkdir "$logdir"
 [ -p "$presence" ] || mkfifo "$presence"
 cookie="$logdir/cookies"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12$(head /dev/urandom | tr -dc '3-6' | cut -c1).0.0.0 Safari/537.36"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
 #call this script by script-name "function_name" "query"
 [ -z "$1" ] && help "$@"
