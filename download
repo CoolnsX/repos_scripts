@@ -65,7 +65,7 @@ instagram() {
 
 #main
 link="$1"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12$(head /dev/urandom | tr -dc '3-6' | cut -c1).0.0.0 Safari/537.36"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12$(head /dev/urandom | tr -dc '4-7' | cut -c1).0.0.0 Safari/537.36"
 
 case $(uname -o) in
 	*ndroid*)
@@ -98,13 +98,14 @@ case "$link" in
 		info "Fetching Video URL" "$app" "$id"
 		video_url=$(curl -s "https://i.instagram.com/api/v1/web/get_ruling_for_content/?content_type=MEDIA&target_id=$res" -H "x-ig-app-id:936619743392459" -H "x-ig-www-claim:0" -A "$agent" -c - -o /dev/null | curl -A "$agent" -s -G "https://www.instagram.com/graphql/query/" -H "content-type:application/json" --data-urlencode 'query_hash=9f8827793ef34641b2fb195d4d41151c' --data-urlencode 'variables={"shortcode":"'"$id"'","include_reel":false,"include_logged_out":false}' -e "$link" -b - | tr '{}' '\n' | sed -nE 's|.*video_url":"([^"]*)".*|\1|p' | sed 's/\u0026/\&/g;s/\\//g')
 		printf "%s" "$video_url" | grep -qE 'instagram.*mp4' || instagram "$link" "$id"
+		[ -z "$video_url" ] && fallback=1
 		;;
 	*youtu*)
 		app="Youtube"
 		id=$(printf "%s" "$link" | cut -d"=" -f2 | cut -d"/" -f4)
 		[ -z "$id" ] && error "Unable to extract ID" "$app" "$id"
 		info "Fetching Video URL" "$app" "$id"
-		yt_ver="2.20231219.04.00"
+		yt_ver="2.20240624.06.00"
 		json="{
 		  \"context\": {
 		    \"client\": {

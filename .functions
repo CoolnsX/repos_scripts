@@ -7,7 +7,7 @@ menu_droid() {
 }
 
 menu_linux() {
-	bemenu --fn 'Cascadia Mono 15' -i -c -W "0.${3:-6}" -B 3 -l 25 -p "$1" --bdr="#$GLOBAL_ACCENT" --tf="#$GLOBAL_ACCENT" --hf="#$GLOBAL_ACCENT"
+	bemenu --fn 'Cascadia Mono 15' -i -c -W "0.${3:-6}" -B 3 -l 25 -p "$1" --bdr="#$GLOBAL_ACCENT" --tf="#$GLOBAL_ACCENT" --hf="#$GLOBAL_ACCENT" -R 20
 }
 
 search_droid() {

@@ -32,8 +32,17 @@ fi
 # shellcheck source=./.functions
 . "$script_dir/.functions"
 
+filepath="$HOME/.cache"
 #check if the url is magnet
-! printf "%s" "$magnet" | grep -qE "magnet:\?xt=urn:btih:|torrent" && error_$os "Not a valid magnet link!" && exit 0
+! printf "%s" "$magnet" | grep -qE "magnet:\?xt=urn:btih:|\.torrent$" && error_$os "Not a valid magnet link!" && exit 0
+
+# check if the variable is actuall magnet-link or file
+if printf '%s' "$magnet" | grep -qE "\.torrent$";then
+	filepath="$(dirname "$magnet")"
+	file="$(basename "$magnet")"
+	is_file=1
+fi
+
 echo "$magnet"
 printf "${c_yellow}Download>>\n${c_green}[f]ull torrent\n${c_cyan}[p]artial torrent \n${c_red}[q]uit"
 printf "${c_reset}\n\tenter choice:"
@@ -43,14 +52,16 @@ case $ch in
 		down "$magnet"
 		;;
 	p)
-		file=$(printf "%s" "$magnet" | sed -nE 's|.*urn:btih:([^&]*).*|\1|p' | tr '[:upper:]' '[:lower:]')
-		aria2c --dir="$HOME/.cache" --bt-metadata-only=true --bt-save-metadata=true "$magnet"
+		if [ -z "$is_file" ];then
+			file="$(printf "%s" "$magnet" | sed -nE 's|.*urn:btih:([^&]*).*|\1|p' | tr '[:upper:]' '[:lower:]').torrent"
+			{ [ -f "$filepath/$file" ] && [ ! -f "$filepath/$file.aria2" ]; } || aria2c --dir="$filepath" --bt-metadata-only=true --bt-save-metadata=true "$magnet" -o "$file"
+		fi
 		tput reset
-		aria2c --show-files=true "$HOME/.cache/$file.torrent"
+		aria2c --show-files=true "$filepath/$file"
 		printf "${c_cyan}Enter file idx(default=all): "
 		read -r ind
-		down "$HOME/.cache/$file.torrent" "$ind"
-		rm -f "$HOME/.cache/$file.torrent"
+		down "$filepath/$file" "$ind"
+		rm -f "$filepath/$file"
 		;;
 	q)
 		exit 0

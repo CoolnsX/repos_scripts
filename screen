@@ -52,7 +52,7 @@ record() {
 stop() {
 	pgrep -af wf-recorder >/dev/null && killall -s SIGINT wf-recorder 2>/dev/null || return 0
 	info "" "" "Recording Stopped"
-	case $(printf "upload to discord\nupload to nextcloud\nupload to oshi\nsave locally" | menu "Post-Record:" '3') in
+	case $(printf "upload to matrix\nupload to nextcloud\nupload to oshi\nsave locally" | menu "Post-Record:" '3') in
 		*oshi)
 			info "icloud" "" "Uploading to Oshi"
 			out=$(curl -sk https://oshi.at -F shorturl=0 -F "f=@$tmp_file")
@@ -78,19 +78,7 @@ stop() {
 			curl -u "$NC_USER:$NC_TOKEN" -s "$NC_URL/ocs/v2.php/apps/files_sharing/api/v1/shares" -H 'content-type: application/json' -H 'accept: application/json, text/plain, */*' -H 'OCS-APIRequest: true' --data-raw '{"path":"'"${NC_SHARE_PATH}/$cloudname"'","shareType":3,"expireDate":"'"$expire_date"'"}' | sed -nE 's|.*"url":"([^"]*)".*|\1|p' | sed 's/\\//g' | wl-copy && info "com.github.davidmhewitt.clipped" "2000" "Share Link Created and copied to clipboard"
 			;;
 
-		*discord)
-			#shellcheck disable=SC1091
-			. "$HOME"/.config/.env
-
-			channel=$(curl -s "$DISCORD_URL/guilds/$DISCORD_SERVER_ID/channels" -H "Authorization: $DISCORD_TOKEN" | tr '{}' '\n' | sed -nE 's|.*"id":"([^"]*)".*last_message_id.*"name":"([^"]*)".*|\1\t\2|p' | menu "Select Channel: ")
-			channel_name=$(printf "%s" "$channel" | cut -f2)
-			channel_id=$(printf "%s" "$channel" | cut -f1)
-			[ "$(du -m "$tmp_file" | cut -f1)" -gt 25 ] && compress #compressing file if greater than 25 MB
-			info "discord" "" "Uploading to Discord in $channel_name"
-			content="${tmp_file##*/} ($(du -h "$tmp_file" | cut -f1)) uploaded by coolans"
-			curl -s "$DISCORD_URL/channels/$channel_id/messages" -H "Authorization: $DISCORD_TOKEN" -H "Accept: application/json" -H "Content-Type: multipart/form-data" -X POST -F "file=@$tmp_file" -F 'payload_json={"content":"'"${content}"'"}' && info "" "2000" "Uploaded $tmp_file ($(du -h "$tmp_file" | cut -f1)) to $channel_name in Discord" && return 0
-			filename="screenrecord-$(date +"%F_%H-%M-%S").mp4"
-			mv "$tmp_file" "$HOME/$filename" && info "" "2000" "Unable to upload to Discord,file moved to your home folder as $filename"
+		*matrix)
 			;;
 
 		save*)
