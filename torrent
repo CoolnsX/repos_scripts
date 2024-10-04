@@ -26,6 +26,9 @@ else
 	script_dir="$HOME/repos_scripts"
 	download_dir="$HOME/Softwares"
 	[ -z "$magnet" ] && magnet="$(wl-paste)"
+	terminal="${TERMINAL:-foot}"
+	prefix="setsid -f $terminal -e"
+	pgrep -af "$0" | grep -q "$terminal" || { $prefix "$0" "$magnet"; exit 0; }
 fi
 
 #import generic functions

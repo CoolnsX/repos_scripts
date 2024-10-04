@@ -65,7 +65,7 @@ get_cookies() {
 	# the user has firefox installed
 	if [ ! -f "$HOME/.config/google-chrome/Default/Cookies" ]; then
 		cp "$(find "$HOME/.mozilla" -type f -iname 'cookies.sqlite' | head -1)" "$logdir/cookies.sqlite"
-		sqlite3 "$logdir/cookies.sqlite" "SELECT name, value FROM moz_cookies WHERE host='.youtube.com' and name NOT like 'ST-%';" | tr '|\n' '=;' >"$cookie"
+		sqlite3 "$logdir/cookies.sqlite" "SELECT name, value FROM moz_cookies WHERE host='.youtube.com' and name NOT like 'ST-%' and name NOT like 'VISITOR%' and name NOT like 'PREF%';" | tr '|\n' '=;' >"$cookie"
 		rm "$logdir/cookies.sqlite"
 		return 0
 	fi
@@ -196,7 +196,7 @@ play() {
 	curl -s "https://i.ytimg.com/vi/$id/hqdefault.jpg" -o - | magick convert - -crop 270x270+105+45 "$logdir/default.jpg" && notify-send -e -h "string:x-canonical-private-synchronous:${0##*/}" -i "$logdir/default.jpg" "Now Playing" "$title" -t 5000
 	pgrep -f "$socket" >/dev/null || (setsid -f mpv --really-quiet --input-ipc-server="$socket" --idle --quiet >/dev/null && sleep 1)
 	printf '{"command":["loadfile","%s","replace"]}\n' "$audio_url" | socat - "$socket"
-	printf "SONG='%s'\nARTIST='%s'\nID='%s'" "$(printf '%s' "$title" | sed 's|[^-]*$||g;s|-$||g;s| $||g;s|^ ||g')" "$(printf '%s' "$title" | sed 's_.* - __;s| $||')" "$id" >"$logdir/current"
+	printf 'SONG="%s"\nARTIST="%s"\nID="%s"' "$(printf '%s' "$title" | sed 's|[^-]*$||g;s|-$||g;s| $||g;s|^ ||g;s/\\//g')" "$(printf '%s' "$title" | sed 's_.* - __;s| $||')" "$id" >"$logdir/current"
 
 	#self explainatory
 	get_song_lyrics "$id" &
@@ -226,7 +226,7 @@ search_play() {
 		\"params\": \"EgWKAQIIAWoKEAMQBBAJEAoQBQ%3D%3D\"
 		}"
 
-		res=$(get_data "search" "$json_search" "$agent" | sed 's/watchEndpoint"/\n/g' | sed -nE 's_.*videoId":"([^"]*)",.*label":"Play ([^"]*)".*_\2\t\1_p' | menu "Yt-music [Play]:")
+		res=$(get_data "search" "$json_search" "$agent" | sed 's/watchEndpoint"/\n/g' | sed -nE 's_.*videoId":"([^"]*)",.*label":"Play ([^}]*)".*_\2\t\1_p' | menu "Yt-music [Play]:")
 	else
 		id=$(printf '%s' "$query" | cut -d':' -f2 | cut -d"=" -f2 | cut -d"/" -f4 | cut -d'&' -f1)
 		title=$(curl -s "https://www.youtube.com/oembed?url=http://www.youtube.com/watch?v=$id&format=xml" | sed -nE 's|.*<title>([^<]*)<.*|\1|p' | sed 's|&amp;|\&|g')
@@ -266,7 +266,7 @@ play_next() {
 
 menu() {
 	if command -v bemenu >/dev/null; then
-		bemenu --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 3 -p "$1" -l 26 -I "${2:-0}" -P ">>" --bdr="#$GLOBAL_ACCENT" --tf="#$GLOBAL_ACCENT" --hf="#$GLOBAL_ACCENT"
+		bemenu -R 20 --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 3 -p "$1" -l 26 -I "${2:-0}" -P ">>" --bdr="#$GLOBAL_ACCENT" --tf="#$GLOBAL_ACCENT" --hf="#$GLOBAL_ACCENT"
 	else
 		fzf --prompt="$1" --height=25 --reverse --border=horizontal --header="${2:-0}" --marker=">>"
 	fi

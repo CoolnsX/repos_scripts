@@ -35,7 +35,7 @@ record() {
 	mic="alsa_input.pci-0000_04_00.6.analog-stereo" #It is called in eval on line 9
 	#shellcheck disable=SC2034
 	speaker="alsa_output.pci-0000_04_00.6.analog-stereo.monitor" #It is called in eval on line 9
-	source=$(printf "screen only\nspeaker\nmic" | menu "Audio Source:" "3")
+	source=$(printf "screen only\n%s" "$(pactl -f json list sources | sed 's|"index":|\n|g' | sed -nE 's|.*,"name":"([^"]*)","description":"([^"]*)".*|\2\t\1|p')" | menu "Audio Source:" "3")
 
 	[ -z "$source" ] && info "" "2000" "No option Selected" && return 0
 
@@ -65,6 +65,8 @@ stop() {
 			#shellcheck disable=SC1091
 			. "$HOME"/.config/.env
 
+			nextcloud_creds
+
 			cloudname="screenrecord-$(date +"%F_%H-%M-%S").mp4"
 
 			#upload to nextcloud instance, universal code
@@ -76,9 +78,13 @@ stop() {
 			info "nextcloud" "10000" "Generating Share Link"
 			expire_date=$(date -d "+ 1 month" +"%Y-%m-%d") # link won't available after 1 month
 			curl -u "$NC_USER:$NC_TOKEN" -s "$NC_URL/ocs/v2.php/apps/files_sharing/api/v1/shares" -H 'content-type: application/json' -H 'accept: application/json, text/plain, */*' -H 'OCS-APIRequest: true' --data-raw '{"path":"'"${NC_SHARE_PATH}/$cloudname"'","shareType":3,"expireDate":"'"$expire_date"'"}' | sed -nE 's|.*"url":"([^"]*)".*|\1|p' | sed 's/\\//g' | wl-copy && info "com.github.davidmhewitt.clipped" "2000" "Share Link Created and copied to clipboard"
+
+			nextcloud_creds "unload"
 			;;
 
 		*matrix)
+			matrix_creds
+			matrix_creds "unload"
 			;;
 
 		save*)
