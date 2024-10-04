@@ -1,0 +1,50 @@
+#!/bin/sh
+
+mpv_jellyfin() {
+	notify-send -e "Playing $2" -r '10' -i "mpv"
+	url="$JF_BASE_URL/Items/$1/Download?api_key=$JF_TOKEN"
+	sub="$JF_BASE_URL/Videos/$(printf '%s' "$1" | sed -E 's/(.{8})(.{4})(.{4})(.{4})(.{12})/\1-\2-\3-\4-\5/')/$1/Subtitles/0/0/Stream.ass?api_key=$JF_TOKEN"
+	! curl -s "$sub" | grep -q "Error processing request" && sub_arg="--sub-file=$sub"
+	#shellcheck disable=SC2086
+	nohup mpv --input-ipc-server="$socket" --force-media-title="$2" "$url" $sub_arg >/dev/null 2>&1 &
+}
+
+get_data() {
+	curl -s "${JF_BASE_URL}/$1" -H 'Authorization: MediaBrowser Token="'"$JF_TOKEN"'"' -H "Accept: application/json" | sed 's|\[{|\n|g;s|},{|\n|g' | sed -nE 's|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*,"ImageTags":\{"Primary":"([^"]*)".*|\2\t\3\t\1|p' | menu "$2"
+}
+
+menu() {
+	fzf --prompt="$1" --layout=reverse --border --with-nth=3.. --preview="img2sixel '$JF_BASE_URL/items/{1}/Images/Primary?fillHeight=450&quality=96'" --preview-window=right,70%
+}
+
+#shellcheck disable=SC1091
+. "$HOME"/.config/.env
+
+jellyfin_creds
+
+socket="/tmp/${0##*/}-mpvsocket"
+
+what_to_watch=$(get_data "UserViews?userId=$JF_USER_ID" "What To Watch? >")
+[ -z "$what_to_watch" ] && exit 1
+what_to_watch_id=$(printf '%s' "$what_to_watch" | cut -f1)
+what_to_watch_title=$(printf '%s' "$what_to_watch" | cut -f3 | sed 's|.$||g')
+
+data=$(get_data "Items?IncludeItemTypes=$what_to_watch_title&Recursive=false&ParentId=$what_to_watch_id" "Select $what_to_watch_title >")
+[ -z "$data" ] && exit 1
+id=$(printf "%s" "$data" | cut -f1)
+title=$(printf "%s" "$data" | cut -f3)
+
+[ "$what_to_watch_title" = "Movie" ] && mpv_jellyfin "$id" "$title" && exit 0
+
+season=$(get_data "Shows/$id/Seasons?userId=$JF_USER_ID" "Select Season >")
+[ -z "$season" ] && exit 1
+season_title=$(printf "%s" "$season" | cut -f3)
+season_id=$(printf "%s" "$season" | cut -f1)
+episode=$(get_data "Shows/$id/Episodes?seasonId=$season_id&userId=$JF_USER_ID" "Select Episode >")
+[ -z "$episode" ] && exit 1
+episode_title=$(printf "%s" "$episode" | cut -f3)
+episode_id=$(printf "%s" "$episode" | cut -f1)
+
+mpv_jellyfin "$episode_id" "$title $season_title ep: $episode_title"
+
+jellyfin_creds "unload"
