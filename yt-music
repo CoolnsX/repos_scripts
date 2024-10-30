@@ -78,7 +78,7 @@ get_cookies() {
 get_data() {
 	lol=$(date +%s)
 	grep -q "SAPISID" "$logdir/cookies" 2>/dev/null && sapisid_hash=$(printf '%s_%s' "$lol" "$(printf '%s %s %s' "$lol" "$(sed -nE 's|.*SAPISID=([^;]*);.*|\1|p' "$logdir/cookies")" "$base_url" | sha1sum | cut -d' ' -f1)") && sapisid_header="Authorization: SAPISIDHASH $sapisid_hash" || sapisid_header=""
-	curl -X POST -A "${3:-$agent}" -s "$base_url/youtubei/v1/$1?key=${4:-AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30}&prettyPrint=false" -H "content-type:application/json" -d "$2" -b "$(cat "$cookie")" -e "$base_url" -H "$sapisid_header"
+	curl -X POST -A "${3:-$agent}" -s "$base_url/youtubei/v1/$1?prettyPrint=false" -H "content-type:application/json" -d "$2" -e "$base_url" -b "$(cat "$cookie")" -H "$sapisid_header"
 }
 
 get_music_list() {
@@ -109,15 +109,15 @@ get_song_lyrics() {
 	\"context\": $(cat "$logdir/context")
 	}"
 
-	browseId=$(get_data "next" "$json_next" | sed -nE 's|.*"browseId":"(MPLYt[^"]*)".*TRACK_LYRICS.*|\1|p')
+	browseId=$(get_data "next" "$json_next" "$yt_music_agent" | sed -nE 's|.*"browseId":"(MPLYt[^"]*)".*TRACK_LYRICS.*|\1|p')
 	if [ -n "$browseId" ]; then
 		json_lyrics="{
 		  \"context\": {
 		    \"client\": {
 		      \"clientName\": \"ANDROID_MUSIC\",
-		      \"clientVersion\": \"$andy_yt_ver\",
+		      \"clientVersion\": \"$yt_music_ver\",
 		      \"androidSdkVersion\": $((random_no + extra_up + 29)),
-		      \"userAgent\": \"$droid_agent\",
+		      \"userAgent\": \"$yt_music_agent\",
 		      \"hl\": \"en\",
 		      \"timeZone\": \"UTC\",
 		      \"utcOffsetMinutes\": 0
@@ -125,7 +125,7 @@ get_song_lyrics() {
 		  },
 		  \"browseId\": \"$browseId\"
   		}"
-		get_data "browse" "$json_lyrics" "$droid_agent" "AIzaSyAOghZGza2MQSZkY_zfZ370N-PUdXEo8AI" | sed 's/metadata"/\n/g' | sed -nE 's|.*lyricLine":"([^"]*)","cueRange".*"endTimeMilliseconds":"([^"]*)".*|\2\t\1|p' | sed 's/\(\(\w\w*\W*\)\{10\}\)/\1\\n/g' >"$logdir/lyrics"
+		get_data "browse" "$json_lyrics" "$yt_music_agent" | sed 's/metadata"/\n/g' | sed -nE 's|.*lyricLine":"([^"]*)","cueRange".*"endTimeMilliseconds":"([^"]*)".*|\2\t\1|p' | sed 's/\(\(\w\w*\W*\)\{10\}\)/\1\\n/g' >"$logdir/lyrics"
 	fi
 }
 
@@ -159,17 +159,13 @@ play() {
 	[ -z "$id" ] && printf "[ youtube ] Invalid link\n" && exit 1
 
 	#get song's audio url
-	random_no=$(head /dev/urandom | tr -dc '0-4' | cut -c1)
-	andy_yt_ver="7.08.53"
-	extra_up=$((random_no > 1))
-	droid_agent="com.google.android.apps.youtube.music/$andy_yt_ver (Linux; U; Android 1$random_no) gzip"
 	json="{
 	  \"context\": {
 	    \"client\": {
-	      \"clientName\": \"ANDROID_MUSIC\",
-	      \"clientVersion\": \"$andy_yt_ver\",
+	      \"clientName\": \"ANDROID\",
+	      \"clientVersion\": \"$yt_ver\",
 	      \"androidSdkVersion\": $((random_no + extra_up + 29)),
-	      \"userAgent\": \"$droid_agent\",
+	      \"userAgent\": \"$yt_agent\",
 	      \"hl\": \"en\",
 	      \"timeZone\": \"UTC\",
 	      \"utcOffsetMinutes\": 0
@@ -185,7 +181,7 @@ play() {
 	  \"racyCheckOk\": true
 	}"
 
-	audio_url=$(get_data "player" "$json" "$droid_agent" "AIzaSyAOghZGza2MQSZkY_zfZ370N-PUdXEo8AI" | sed -nE 's_.*itag":251,"url":"([^"]*)".*_\1_p')
+	audio_url=$(get_data "player" "$json" "$yt_agent" | sed -nE 's_.*itag":251,"url":"([^"]*)".*_\1_p')
 	[ -z "$audio_url" ] && return 0
 	if [ -n "$2" ]; then
 		printf "Name >> %s\n" "$title"
@@ -277,7 +273,20 @@ socket="$logdir/${0##*/}-mpvsocket"
 base_url="https://music.youtube.com"
 [ -d "$logdir" ] || mkdir "$logdir"
 cookie="$logdir/cookies"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+
+# user agents, used by script
+random_no=$(head /dev/urandom | tr -dc '0-4' | cut -c1)
+# web
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/13$random_no.0.0.0 Safari/537.36"
+# android
+extra_up=$((random_no > 1))
+# youtube
+yt_ver="19.42.41"
+yt_agent="com.google.android.youtube/$yt_ver (Linux; U; Android 1$random_no) gzip"
+# youtube music
+yt_music_ver="7.24.51"
+yt_music_agent="com.google.android.apps.youtube.music/$yt_music_ver (Linux; U; Android 1$random_no) gzip"
+
 
 #call this script by script-name "function_name" "query"
 [ -z "$1" ] && help "$@"

@@ -2,7 +2,7 @@
 
 domain="allanime.day"
 run_file="${TMPDIR:-/tmp}/${0##*/}_run"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12$(head /dev/urandom | tr -dc '3-6' | cut -c1).0.0.0 Safari/537.36"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/13$(head /dev/urandom | tr -dc '0-5' | cut -c1).0.0.0 Safari/537.36"
 debug=$2
 
 \cat <<EOF >"$run_file"

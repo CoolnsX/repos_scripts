@@ -18,54 +18,9 @@ notify_linux() {
 	notify-send -e "$1" -h "string:x-canonical-private-synchronous:${0##*/}"
 }
 
-conv_to_octal() {
-	base=$2
-	i=0
-	res=0
-	for key in $(printf "%s" "$1" | rev | sed 's/./&\n/g'); do
-		if [ "$key" -ne 0 ]; then
-			j=$i
-			tmp=1
-			while [ "$j" -ne 0 ]; do
-				: $((tmp *= base))
-				: $((j -= 1))
-			done
-			res=$((res + (key * tmp)))
-		fi
-		: $((i += 1))
-	done
-
-	res=$(printf '%03o' "$((res - ${3}))")
-	#shellcheck disable=SC2059
-	printf "\\$res" | sed 's/[\/&]/\\&/g'
-}
-
-instagram() {
-	info "Using Alternate Site" "Instagram" "$2"
-	sed_file="${TMPDIR:-/tmp}/${0##*/}-sed-file"
-	response=$(curl -s "https://snapinsta.app" -o /dev/null -c - | curl -s 'https://snapinsta.app/action2.php' -e 'https://snapinsta.app/' -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' -b - -F "url=$1" -F 'action=post' -F 'lang=' --compressed | sed -nE 's|.*\}\(([^\)]*)\).*|\1|p' | tr -d '"' | tr ',' '\n')
-
-	n=$(printf "%s" "$response" | sed -n '3p')
-	t=$(printf "%s" "$response" | sed -n '4p')
-	e=$(printf "%s" "$response" | sed -n '5p')
-	printf '%s' "$n" | cut -c-"$e" | sed 's/./&\n/g' | tr -s '\n' | nl -nln -v0 | sed -nE 's|^([0-9]*)[[:space:]]*(.*)|s\/\2\/\1\/g|p' >"$sed_file"
-	printf 's/%s/\\n/g' "$(printf "%s" "$n" | cut -c"$((e + 1))")" >>"$sed_file"
-
-	data=$(printf "%s" "$response" | head -1 | sed -f "$sed_file" | sed -n '1200,$p')
-
-	info "Decoding JS" "Instagram" "$2"
-	printf "" >"$sed_file"
-	for num in $(printf "%s" "$data" | sort -u); do
-		printf 's/^%s$/%s/g\n' "$num" "$(conv_to_octal "$num" "$e" "$t")" >>"$sed_file" &
-	done
-	wait
-
-	video_url=$(printf "%s" "$data" | sed -f "$sed_file" -e 's/\\//g' | tr -d '\n' | sed -nE 's|.*a href="([^"]*)".*|\1|p')
-}
-
 #main
 link="$1"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12$(head /dev/urandom | tr -dc '4-7' | cut -c1).0.0.0 Safari/537.36"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/13$(head /dev/urandom | tr -dc '0-5' | cut -c1).0.0.0 Safari/537.36"
 
 case $(uname -o) in
 	*ndroid*)
@@ -96,8 +51,11 @@ case "$link" in
 		done
 
 		info "Fetching Video URL" "$app" "$id"
+		# main source
 		video_url=$(curl -s "https://i.instagram.com/api/v1/web/get_ruling_for_content/?content_type=MEDIA&target_id=$res" -H "x-ig-app-id:936619743392459" -H "x-ig-www-claim:0" -A "$agent" -c - -o /dev/null | curl -A "$agent" -s -G "https://www.instagram.com/graphql/query/" -H "content-type:application/json" --data-urlencode 'query_hash=9f8827793ef34641b2fb195d4d41151c' --data-urlencode 'variables={"shortcode":"'"$id"'","include_reel":false,"include_logged_out":false}' -e "$link" -b - | tr '{}' '\n' | sed -nE 's|.*video_url":"([^"]*)".*|\1|p' | sed 's/\u0026/\&/g;s/\\//g')
-		printf "%s" "$video_url" | grep -qE 'instagram.*mp4' || instagram "$link" "$id"
+		# alternate source
+		! printf "%s" "$video_url" | grep -qE 'instagram.*mp4' && info "Using Alternate Site" "Instagram" "$2" && video_url=$(curl -s 'https://snapinsta.net/download.php' --compressed -X POST -H 'User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0' -H 'Referer: https://snapinsta.net/' -H 'Content-Type: application/x-www-form-urlencoded' -H 'Accept-Encoding: gzip, deflate, br, zstd' --data-urlencode "url=$1" | sed 's/\\//g;s/\&amp;/\&/g' | sed -nE 's|.*><a href="([^"]*)" .*|\1|p')
+		#fallback source that is yt-dlp
 		[ -z "$video_url" ] && fallback=1
 		;;
 	*youtu*)
@@ -105,13 +63,17 @@ case "$link" in
 		id=$(printf "%s" "$link" | cut -d"=" -f2 | cut -d"/" -f4)
 		[ -z "$id" ] && error "Unable to extract ID" "$app" "$id"
 		info "Fetching Video URL" "$app" "$id"
-		yt_ver="2.20240624.06.00"
+		random_no=$(head /dev/urandom | tr -dc '0-4' | cut -c1)
+		andy_yt_ver="19.42.41"
+		extra_up=$((random_no > 1))
+		droid_agent="com.google.android.youtube/$andy_yt_ver (Linux; U; Android 1$random_no) gzip"
 		json="{
 		  \"context\": {
 		    \"client\": {
-		      \"clientName\": \"WEB\",
-		      \"clientVersion\": \"$yt_ver\",
-		      \"userAgent\": \"$agent\",
+		      \"clientName\": \"ANDROID\",
+		      \"clientVersion\": \"$andy_yt_ver\",
+		      \"androidSdkVersion\": $((random_no + extra_up + 29)),
+		      \"userAgent\": \"$droid_agent\",
 		      \"hl\": \"en\",
 		      \"timeZone\": \"Asia/Calcutta\",
 		      \"utcOffsetMinutes\": 330
@@ -126,7 +88,9 @@ case "$link" in
 		  \"contentCheckOk\": true,
 		  \"racyCheckOk\": true
 		}"
-		video_url=$(curl -X POST -A "$agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8&prettyPrint=false" -H "content-type:application/json" -H "X-Youtube-Client-Version: $yt_ver" -d "$json" -e "$link" | tr '{}' '\n' | sed -nE 's|.*,"title":"([^"]*)".*|\tout=\1\.mp4|p;s|.*itag":18,"url":"([^"]*)".*|\1|p;s|.*itag":22,"url":"([^"]*)".*|\1|p' | tail -2)
+		# main source
+		video_url=$(curl -X POST -A "$agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8&prettyPrint=false" -H "content-type:application/json" -d "$json" -e "$link" | tr '{}' '\n' | tee data | sed -nE 's|.*,"title":"([^"]*)".*|\tout=\1\.mp4|p;s|.*itag":18,"url":"([^"]*)".*|\1|p;s|.*itag":22,"url":"([^"]*)".*|\1|p' | tail -2)
+		# fallback source
 		printf "%s" "$video_url" | grep -q "googlevideo\.com" || fallback=1
 		;;
 	*)

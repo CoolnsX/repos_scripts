@@ -105,7 +105,7 @@ player_fn="mpv"
 is_download=0
 download_dir='.'
 run_file="${TMPDIR:-/tmp}/${0##*/}_run"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/12$(head /dev/urandom | tr -dc '3-6' | cut -c1).0.0.0 Safari/537.36"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/13$(head /dev/urandom | tr -dc '0-5' | cut -c1).0.0.0 Safari/537.36"
 
 case $(uname -o) in
 	*ndroid*)
