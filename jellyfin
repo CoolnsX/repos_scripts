@@ -1,28 +1,138 @@
 #!/bin/sh
 
+# shellcheck disable=SC1091,SC1090
+
+#fixed variables
+config_file="$HOME/.jellyfin-cli-config"
+VERSION="1.0.0"
+
+info() {
+	#shellcheck disable=SC2059
+	printf "\033[2K\r\033[1;${2:-36}m${1}\033[0m"
+}
+
+success() {
+	info "$1" "32"
+}
+
+ask() {
+	info "$1" "33"
+}
+
+err() {
+	info "$1\n" "31"
+}
+
+save_config() {
+	if [ -f "$config_file" ] && grep -q "$1" "$config_file";then
+		sed -i "s|$1=.*|$1=$2|g" "$config_file" >/dev/null 2>&1
+	else
+		#shellcheck disable=SC2059
+		printf  "$1=$2\n" >> "$config_file"
+		sed '/^$/d' "$config_file" >/dev/null 2>&1
+	fi
+	[ -z "$3" ] && success "$1 Saved in config, to override config values use it as envs\n"
+}
+
+auth_quick_connect () {
+	info "Generating Quick Connect Code.."
+	DEVICE_ID="$(uuidgen)"
+	custom_auth='Authorization: MediaBrowser Client="jellyfin-cli", Device="jellyfin-cli", DeviceId="'"$DEVICE_ID"'", Version="'"$VERSION"'"'
+	eval "$(curl -s "$JF_URL/QuickConnect/Initiate" -X POST -H "$custom_auth" | sed -nE 's|.*"Secret":"([^"]*)","Code":"([^"]*)",.*|SECRET=\1;CODE=\2|p')"
+	info "Your Quick Connect Code: "
+	printf '%s\n' "$CODE"
+	info "Waiting for you to authorized."
+	while curl -s "$JF_URL/QuickConnect/Connect?Secret=$SECRET" -H "$custom_auth" | grep -q '"Authenticated":false';
+	do
+		printf '.'
+		sleep 2
+	done
+	success "Authorized Successfully!!\n"
+
+	# you authenticated YAY
+	eval "$(curl -s "$JF_URL/Users/AuthenticateWithQuickConnect" -X POST -H "Content-Type: application/json" --data-raw '{"Secret":"'"$SECRET"'"}' -H "$custom_auth" | sed -nE 's|.*UserId":"([^"]*)".*"AccessToken":"([^"]*)",.*|JF_USER_ID=\1;JF_TOKEN=\2|p')"
+
+	save_config "JF_USER_ID" "$JF_USER_ID"
+	save_config "JF_TOKEN" "$JF_TOKEN"
+}
+
+check_config_auth() {
+	info "Checking Config.."
+	[ -f "$config_file" ] || return 1
+	for i in JF_USER_ID JF_TOKEN JF_URL;do
+		if ! grep -qE "$i=(.+)" "$config_file";then
+			return 1
+		fi
+	done
+	info "Checking Auth..."
+	. "$config_file"
+	resp=$(curl -s "$JF_URL/Users/Me" -H 'Authorization: MediaBrowser Token="'"$JF_TOKEN"'"' | sed -nE 's|.*"Id":"([^"]*)".*|JF_USER_ID=\1|p')
+	[ -z "$resp" ] && save_config "JF_TOKEN" "" "no_output" && return 1
+	return 0
+}
+
+configure() {
+	info "Welcome to Jellyfin CLI script, we will go through some configuration.\n"
+	[ -f "$config_file" ] && . "$config_file"
+	if ! [ -f "$config_file" ] || ! grep -qE "JF_URL=(.+)" "$config_file";then
+		ask "First, Where is Jellyfin hosted? : "
+		read -r JF_URL
+		save_config "JF_URL" "$JF_URL"
+	fi
+	if ! [ -f "$config_file" ] || ! grep -qE "JF_TOKEN=(.+)" "$config_file";then
+		auth_quick_connect
+	fi
+	if ! [ -f "$config_file" ] || ! grep -qE "JF_USER_ID=(.+)" "$config_file";then
+		eval "$(curl -s "$JF_URL/Users/Me" -H 'Authorization: MediaBrowser Token="'"$JF_TOKEN"'"' | sed -nE 's|.*"Id":"([^"]*)".*|JF_USER_ID=\1|p')"
+		save_config "JF_USER_ID" "$JF_USER_ID"
+	fi
+	unset JF_USER_ID JF_TOKEN CODE SECRET JF_URL
+	. "$config_file"
+}
+
 mpv_jellyfin() {
-	notify-send -e "Playing $2" -r '10' -i "mpv"
-	url="$JF_BASE_URL/Items/$1/Download?api_key=$JF_TOKEN"
-	sub="$JF_BASE_URL/Videos/$(printf '%s' "$1" | sed -E 's/(.{8})(.{4})(.{4})(.{4})(.{12})/\1-\2-\3-\4-\5/')/$1/Subtitles/0/0/Stream.ass?api_key=$JF_TOKEN"
+	success "Playing $2 on mpv"
+	url="$JF_URL/Items/$1/Download?api_key=$JF_TOKEN"
+	sub="$JF_URL/Videos/$(printf '%s' "$1" | sed -E 's/(.{8})(.{4})(.{4})(.{4})(.{12})/\1-\2-\3-\4-\5/')/$1/Subtitles/0/0/Stream.ass?api_key=$JF_TOKEN"
 	! curl -s "$sub" | grep -q "Error processing request" && sub_arg="--sub-file=$sub"
 	#shellcheck disable=SC2086
 	nohup mpv --input-ipc-server="$socket" --force-media-title="$2" "$url" $sub_arg >/dev/null 2>&1 &
+	track_progress "$(printf '%s' "$1" | sed -E 's/(.{8})(.{4})(.{4})(.{4})(.{12})/\1-\2-\3-\4-\5/')"
+}
+
+track_progress() {
+EID=$1
+\cat <<EOF >"$progress_track_file"
+while sleep 5;do
+	position=\$(echo '{"command" :["get_property","playback-time"]}' | socat - "$socket" >/dev/null 2>&1 | sed -nE 's_.*data":([^,]*).*_\1_p' | tr -d '.' | sed 's|$|0|g')
+	[ -z "\$position" ] && break
+	positionTicks=\$position
+done
+[ -n "\$positionTicks" ] && curl -s "$JF_URL/Users/$JF_USER_ID/PlayingItems/$EID?positionTicks=\$positionTicks" -X DELETE -H 'Authorization: MediaBrowser Token="'"$JF_TOKEN"'"' -H 'Content-Type: application/json'
+rm "$socket"
+EOF
+
+chmod +x "$progress_track_file"
+setsid -f "$progress_track_file"
 }
 
 get_data() {
-	curl -s "${JF_BASE_URL}/$1" -H 'Authorization: MediaBrowser Token="'"$JF_TOKEN"'"' -H "Accept: application/json" | sed 's|\[{|\n|g;s|},{|\n|g' | sed -nE 's|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*,"ImageTags":\{"Primary":"([^"]*)".*|\2\t\3\t\1|p' | menu "$2"
+	curl -s "${JF_URL}/$1" -H 'Authorization: MediaBrowser Token="'"$JF_TOKEN"'"' -H "Accept: application/json" | sed 's|\[{|\n|g;s|},{|\n|g' | sed -nE 's|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*Primary":\{?"([^"]*)".*|\2\t\3\t\1|p' | menu "$2"
 }
 
 menu() {
-	fzf --prompt="$1" --layout=reverse --border --with-nth=3.. --preview="img2sixel '$JF_BASE_URL/items/{1}/Images/Primary?fillHeight=450&quality=96'" --preview-window=right,70%
+	fzf --prompt="$1" --layout=reverse --border --with-nth=3.. --preview="img2sixel '$JF_URL/items/{1}/Images/Primary?fillHeight=450&quality=96'" --preview-window=right,70%
 }
 
-#shellcheck disable=SC1091
-. "$HOME"/.config/.env
+check_config_auth || configure
 
-jellyfin_creds
+info ""
+
+. "$config_file"
 
 socket="/tmp/${0##*/}-mpvsocket"
+progress_track_file="/tmp/${0##*/}-progress"
+
 
 what_to_watch=$(get_data "UserViews?userId=$JF_USER_ID" "What To Watch? >")
 [ -z "$what_to_watch" ] && exit 1
@@ -46,5 +156,3 @@ episode_title=$(printf "%s" "$episode" | cut -f3)
 episode_id=$(printf "%s" "$episode" | cut -f1)
 
 mpv_jellyfin "$episode_id" "$title $season_title ep: $episode_title"
-
-jellyfin_creds "unload"

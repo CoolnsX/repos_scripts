@@ -94,7 +94,7 @@ get_music_list() {
 	}"
 	next_data=$(get_data "next" "$json_next" | sed 's/playlistPanelVideoRenderer/\n/g;s/hasPersistentPlaylistPanel/\n/g' | sed -nE 's|.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*|\1 - \2\t\3|p;s|.*nextRadioContinuationData":\{([^,]*).*|\1,|p')
 	#shellcheck disable=SC1091,SC2094
-	printf '%s' "$next_data" | sed -e "$(cut -f2 "$logdir/next" | sed 's|^|/|g;s|$|/d|g')" -e '/"continuation"/d' >>"$logdir/next"
+	printf '%s' "$next_data" | sed -e "$(cut -f2 "$logdir/next" | sed 's|^|/|g;s|$|/d|g')" -e '/"continuation"/d' -e "/Slowed/d;/Reverb/d;/Sped/d;/Speed/d;/slowed/d;/Slow/d;/SLOWED/d;/REVERB/d;/SPEED/d;/SPED/d" >>"$logdir/next"
 	printf '%s' "$next_data" | sed -n '/"continuation"/p' >"$logdir/continue_token"
 }
 
@@ -192,7 +192,7 @@ play() {
 	curl -s "https://i.ytimg.com/vi/$id/hqdefault.jpg" -o - | magick convert - -crop 270x270+105+45 "$logdir/default.jpg" && notify-send -e -h "string:x-canonical-private-synchronous:${0##*/}" -i "$logdir/default.jpg" "Now Playing" "$title" -t 5000
 	pgrep -f "$socket" >/dev/null || (setsid -f mpv --really-quiet --input-ipc-server="$socket" --idle --quiet >/dev/null && sleep 1)
 	printf '{"command":["loadfile","%s","replace"]}\n' "$audio_url" | socat - "$socket"
-	printf 'SONG="%s"\nARTIST="%s"\nID="%s"' "$(printf '%s' "$title" | sed 's|[^-]*$||g;s|-$||g;s| $||g;s|^ ||g;s/\\//g')" "$(printf '%s' "$title" | sed 's_.* - __;s| $||')" "$id" >"$logdir/current"
+	printf 'SONG="%s"\nARTIST="%s"\nID="%s"' "$(printf '%s' "$title" | sed 's|[^-]*$||g;s|-$||g;s| $||g;s|^ ||g;s/\\//g;s|"||g')" "$(printf '%s' "$title" | sed 's_.* - __;s| $||;s|"||g')" "$id" >"$logdir/current"
 
 	#self explainatory
 	get_song_lyrics "$id" &
