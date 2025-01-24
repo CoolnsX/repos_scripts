@@ -101,15 +101,18 @@ mpv_jellyfin() {
 }
 
 track_progress() {
-EID=$1
+ITEM_ID=$1
 \cat <<EOF >"$progress_track_file"
+#!/bin/sh
+
 while sleep 5;do
-	position=\$(echo '{"command" :["get_property","playback-time"]}' | socat - "$socket" >/dev/null 2>&1 | sed -nE 's_.*data":([^,]*).*_\1_p' | tr -d '.' | sed 's|$|0|g')
+	position=\$(echo '{"command" :["get_property","playback-time"]}' | socat - "$socket" 2>/dev/null | sed -nE 's_.*data":([^,]*).*_\1_p' | tr -d '.' | sed 's|$|0|g')
 	[ -z "\$position" ] && break
 	positionTicks=\$position
 done
-[ -n "\$positionTicks" ] && curl -s "$JF_URL/Users/$JF_USER_ID/PlayingItems/$EID?positionTicks=\$positionTicks" -X DELETE -H 'Authorization: MediaBrowser Token="'"$JF_TOKEN"'"' -H 'Content-Type: application/json'
+[ -n "\$positionTicks" ] && curl -s "$JF_URL/Users/$JF_USER_ID/PlayingItems/$ITEM_ID?positionTicks=\$positionTicks" -X DELETE -H 'Authorization: MediaBrowser Token="'"$JF_TOKEN"'"' -H 'Content-Type: application/json'
 rm "$socket"
+rm "\$0"
 EOF
 
 chmod +x "$progress_track_file"
