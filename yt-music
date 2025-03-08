@@ -71,7 +71,7 @@ get_cookies() {
 	fi
 	for i in $(sqlite3 "$HOME/.config/google-chrome/Default/Cookies" "SELECT name,REPLACE(base64(SUBSTR(encrypted_value,4)),CHAR(10),'') FROM cookies WHERE host_key='.youtube.com';"); do
 		printf "%s" "$i" | grep -qE "VISITOR_INFO1_LIVE|VISITOR_PRIVACY_METADATA" && continue
-		printf "%s=%s; " "$(printf '%s' "$i" | cut -d'|' -f1)" "$(printf '%s' "$i" | cut -d'|' -f2 | base64 -d | openssl enc -d -aes-128-cbc -K fd621fe5a2b402539dfa147ca9272778 -iv 20202020202020202020202020202020)"
+		printf "%s=%s; " "$(printf '%s' "$i" | cut -d'|' -f1)" "$(printf '%s' "$i" | cut -d'|' -f2 | base64 -d | openssl enc -d -aes-128-cbc -K fd621fe5a2b402539dfa147ca9272778 -iv 20202020202020202020202020202020 | cut -c33-)"
 	done >"$cookie"
 }
 
@@ -210,7 +210,7 @@ search_play() {
 	[ -z "$query" ] && notify-send -e "Err.. Search query empty" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && exit 1
 
 	#storing context
-	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20240717.01.00"}}' >"$logdir/context"
+	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20250305.01.00"}}' >"$logdir/context"
 	#extracting your cookies so that the song list are according to your taste
 	get_cookies
 

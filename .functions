@@ -49,5 +49,5 @@ player_droid() {
 }
 
 player_linux() {
-	mpv "$1" --force-media-title="$2"
+	setsid -f mpv "$1" --force-media-title="$2" $3
 }
