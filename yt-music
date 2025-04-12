@@ -78,7 +78,8 @@ get_cookies() {
 get_data() {
 	lol=$(date +%s)
 	grep -q "SAPISID" "$logdir/cookies" 2>/dev/null && sapisid_hash=$(printf '%s_%s' "$lol" "$(printf '%s %s %s' "$lol" "$(sed -nE 's|.*SAPISID=([^;]*);.*|\1|p' "$logdir/cookies")" "$base_url" | sha1sum | cut -d' ' -f1)") && sapisid_header="Authorization: SAPISIDHASH $sapisid_hash" || sapisid_header=""
-	curl -X POST -A "${3:-$agent}" -s "$base_url/youtubei/v1/$1?prettyPrint=false" -H "content-type:application/json" -d "$2" -e "$base_url" -b "$(cat "$cookie")" -H "$sapisid_header"
+	output=$(curl -X POST -A "${3:-$agent}" -s "$base_url/youtubei/v1/$1?prettyPrint=false" -H "content-type:application/json" -d "$2" -e "$base_url" -b "$(cat "$cookie")" -H "$sapisid_header")
+	printf '%s\n' "$output" | tee -a "$logdir/logs"
 }
 
 get_music_list() {
@@ -181,7 +182,7 @@ play() {
 	  \"racyCheckOk\": true
 	}"
 
-	audio_url=$(get_data "player" "$json" "$yt_agent" | sed -nE 's_.*itag":251,"url":"([^"]*)".*_\1_p')
+	audio_url=$(get_data "player" "$json" "$yt_agent" | sed -nE 's_.*itag":240,"url":"([^"]*)".*_\1_p')
 	[ -z "$audio_url" ] && return 0
 	if [ -n "$2" ]; then
 		printf "Name >> %s\n" "$title"
@@ -190,7 +191,7 @@ play() {
 	fi
 
 	curl -s "https://i.ytimg.com/vi/$id/hqdefault.jpg" -o - | magick convert - -crop 270x270+105+45 "$logdir/default.jpg" && notify-send -e -h "string:x-canonical-private-synchronous:${0##*/}" -i "$logdir/default.jpg" "Now Playing" "$title" -t 5000
-	pgrep -f "$socket" >/dev/null || (setsid -f mpv --really-quiet --input-ipc-server="$socket" --idle --quiet >/dev/null && sleep 1)
+	pgrep -f "$socket" >/dev/null || (setsid -f mpv --really-quiet --input-ipc-server="$socket" --idle --quiet --user-agent="$yt_agent" >/dev/null && sleep 1)
 	printf '{"command":["loadfile","%s","replace"]}\n' "$audio_url" | socat - "$socket"
 	printf 'SONG="%s"\nARTIST="%s"\nID="%s"' "$(printf '%s' "$title" | sed 's|[^-]*$||g;s|-$||g;s| $||g;s|^ ||g;s/\\//g;s|"||g')" "$(printf '%s' "$title" | sed 's_.* - __;s| $||;s|"||g')" "$id" >"$logdir/current"
 
@@ -210,9 +211,9 @@ search_play() {
 	[ -z "$query" ] && notify-send -e "Err.. Search query empty" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && exit 1
 
 	#storing context
-	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20250305.01.00"}}' >"$logdir/context"
+	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20250310.01.00"}}' >"$logdir/context"
 	#extracting your cookies so that the song list are according to your taste
-	get_cookies
+	#get_cookies
 
 	if ! (printf '%s' "$query" | grep -q 'https:' || printf '%s' "$query" | grep -q 'ID:'); then
 		#json for song search
@@ -275,16 +276,16 @@ base_url="https://music.youtube.com"
 cookie="$logdir/cookies"
 
 # user agents, used by script
-random_no=$(head /dev/urandom | tr -dc '0-4' | cut -c1)
+random_no=$(head /dev/urandom | tr -dc '1-5' | cut -c1)
 # web
 agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/13$random_no.0.0.0 Safari/537.36"
 # android
 extra_up=$((random_no > 1))
 # youtube
-yt_ver="19.42.41"
+yt_ver="20.10.40"
 yt_agent="com.google.android.youtube/$yt_ver (Linux; U; Android 1$random_no) gzip"
 # youtube music
-yt_music_ver="7.24.51"
+yt_music_ver="8.10.51"
 yt_music_agent="com.google.android.apps.youtube.music/$yt_music_ver (Linux; U; Android 1$random_no) gzip"
 
 
