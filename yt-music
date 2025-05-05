@@ -277,9 +277,11 @@ base_url="https://music.youtube.com"
 cookie="$logdir/cookies"
 
 # user agents, used by script
-random_no=$(head /dev/urandom | tr -dc '1-5' | cut -c1)
+random_no=$(head /dev/urandom | tr -dc '4-7' | cut -c1)
 # web
 agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/13$random_no.0.0.0 Safari/537.36"
+# random number for android
+random_no=$(head /dev/urandom | tr -dc '1-5' | cut -c1)
 # android
 extra_up=$((random_no > 1))
 # youtube
