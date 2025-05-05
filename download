@@ -24,7 +24,7 @@ agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ch
 
 case $(uname -o) in
 	*ndroid*)
-		download_dir="/sdcard"
+		download_dir="$HOME/storage/downloads"
 		[ -z "$link" ] && link=$(termux-clipboard-get)
 		os="droid"
 		;;
@@ -101,7 +101,9 @@ esac
 
 if [ -n "$fallback" ]; then
 	info "Using fallback" "$app" "$id"
-	yt-dlp "$link" -o "$download_dir/%(title)s.%(ext)s"
+	filename="$(date +%s).mp4"
+	yt-dlp --no-skip-unavailable-fragments --fragment-retries infinite -N 16 -S 'res,ext:mp4:m4a' --recode mp4 "$link" -o "$filename"
+	mv -v "$filename" "$download_dir"
 else
 	info "Downloading Video" "$app" "$id"
 	printf "%s" "$video_url" | aria2c -x16 -s16 -j10 -k'1M' --user-agent="$agent" -d "$download_dir" -i - --download-result=hide --summary-interval=0 || notify_$os "Unable to Download $app Video"
