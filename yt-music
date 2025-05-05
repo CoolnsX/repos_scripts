@@ -70,7 +70,7 @@ get_cookies() {
 		return 0
 	fi
 	for i in $(sqlite3 "$HOME/.config/google-chrome/Default/Cookies" "SELECT name,REPLACE(base64(SUBSTR(encrypted_value,4)),CHAR(10),'') FROM cookies WHERE host_key='.youtube.com';"); do
-		printf "%s" "$i" | grep -qE "VISITOR_INFO1_LIVE|VISITOR_PRIVACY_METADATA" && continue
+		printf "%s" "$i" | grep -qE "VISITOR_INFO1_LIVE|VISITOR_PRIVACY_METADATA|Secure-ROLLOUT_TOKEN" && continue
 		printf "%s=%s; " "$(printf '%s' "$i" | cut -d'|' -f1)" "$(printf '%s' "$i" | cut -d'|' -f2 | base64 -d | openssl enc -d -aes-128-cbc -K fd621fe5a2b402539dfa147ca9272778 -iv 20202020202020202020202020202020 | cut -c33-)"
 	done >"$cookie"
 }
@@ -78,8 +78,7 @@ get_cookies() {
 get_data() {
 	lol=$(date +%s)
 	grep -q "SAPISID" "$logdir/cookies" 2>/dev/null && sapisid_hash=$(printf '%s_%s' "$lol" "$(printf '%s %s %s' "$lol" "$(sed -nE 's|.*SAPISID=([^;]*);.*|\1|p' "$logdir/cookies")" "$base_url" | sha1sum | cut -d' ' -f1)") && sapisid_header="Authorization: SAPISIDHASH $sapisid_hash" || sapisid_header=""
-	output=$(curl -X POST -A "${3:-$agent}" -s "$base_url/youtubei/v1/$1?prettyPrint=false" -H "content-type:application/json" -d "$2" -e "$base_url" -b "$(cat "$cookie")" -H "$sapisid_header")
-	printf '%s\n' "$output" | tee -a "$logdir/logs"
+	curl -X POST -A "${3:-$agent}" -s "$base_url/youtubei/v1/$1?prettyPrint=false" -H "content-type:application/json" -d "$2" -e "$base_url" -b "$(cat "$cookie")" -H "$sapisid_header"
 }
 
 get_music_list() {
@@ -95,7 +94,7 @@ get_music_list() {
 	}"
 	next_data=$(get_data "next" "$json_next" | sed 's/playlistPanelVideoRenderer/\n/g;s/hasPersistentPlaylistPanel/\n/g' | sed -nE 's|.*text":"(.*)"}.*longBylineText":\{"runs":\[\{"text":"([^"]*)","navigationEndpoint.*videoId":"([^"]*)".*|\1 - \2\t\3|p;s|.*nextRadioContinuationData":\{([^,]*).*|\1,|p')
 	#shellcheck disable=SC1091,SC2094
-	printf '%s' "$next_data" | sed -e "$(cut -f2 "$logdir/next" | sed 's|^|/|g;s|$|/d|g')" -e '/"continuation"/d' -e "/Slowed/d;/Reverb/d;/Sped/d;/Speed/d;/slowed/d;/Slow/d;/SLOWED/d;/REVERB/d;/SPEED/d;/SPED/d" >>"$logdir/next"
+	printf '%s' "$next_data" | sed -e "$(cut -f2 "$logdir/next" | sed 's|^|/|g;s|$|/d|g')" -e '/"continuation"/d' -e "/Slowed/d;/Reverb/d;/Sped/d;/Speed/d;/slowed/d;/Slow/d;/SLOWED/d;/REVERB/d;/SPEED/d;/SPED/d;/EXTENDED/d;/extended/d" >>"$logdir/next"
 	printf '%s' "$next_data" | sed -n '/"continuation"/p' >"$logdir/continue_token"
 }
 
@@ -182,7 +181,9 @@ play() {
 	  \"racyCheckOk\": true
 	}"
 
-	audio_url=$(get_data "player" "$json" "$yt_agent" | sed -nE 's_.*itag":240,"url":"([^"]*)".*_\1_p')
+	# finding a fix, until then, using yt-dlp (it's slow when getting url)
+	#audio_url=$(get_data "player" "$json" "$yt_agent" | sed -nE 's_.*itag":240,"url":"([^"]*)".*_\1_p')
+	audio_url=$(yt-dlp "$base_url/watch?v=$id" -f'ba' --get-url)
 	[ -z "$audio_url" ] && return 0
 	if [ -n "$2" ]; then
 		printf "Name >> %s\n" "$title"
@@ -213,7 +214,7 @@ search_play() {
 	#storing context
 	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20250310.01.00"}}' >"$logdir/context"
 	#extracting your cookies so that the song list are according to your taste
-	#get_cookies
+	get_cookies
 
 	if ! (printf '%s' "$query" | grep -q 'https:' || printf '%s' "$query" | grep -q 'ID:'); then
 		#json for song search
@@ -282,10 +283,10 @@ agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ch
 # android
 extra_up=$((random_no > 1))
 # youtube
-yt_ver="20.10.40"
+yt_ver="20.17.41"
 yt_agent="com.google.android.youtube/$yt_ver (Linux; U; Android 1$random_no) gzip"
 # youtube music
-yt_music_ver="8.10.51"
+yt_music_ver="8.17.52"
 yt_music_agent="com.google.android.apps.youtube.music/$yt_music_ver (Linux; U; Android 1$random_no) gzip"
 
 
