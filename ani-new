@@ -70,7 +70,7 @@ printf "%s\n" "$url" | while read -r id title; do
 		case $choice in
 			stream)
 				info_$os "opening $title" "mpv"
-				player_$os "$provider_video" "$title" "--http-header-fields='Referer: https://$domain' --sub-file='$subtitle'"
+				player_$os "$provider_video" "$title" "--referrer='https://$domain' --sub-file='$subtitle'"
 				break
 				;;
 			cast)
