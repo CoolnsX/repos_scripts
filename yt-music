@@ -212,7 +212,7 @@ search_play() {
 	[ -z "$query" ] && notify-send -e "Err.. Search query empty" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && exit 1
 
 	#storing context
-	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20250310.01.00"}}' >"$logdir/context"
+	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20250616.03.00"}}' >"$logdir/context"
 	#extracting your cookies so that the song list are according to your taste
 	get_cookies
 
@@ -285,10 +285,10 @@ random_no=$(head /dev/urandom | tr -dc '1-5' | cut -c1)
 # android
 extra_up=$((random_no > 1))
 # youtube
-yt_ver="20.17.41"
+yt_ver="20.23.40"
 yt_agent="com.google.android.youtube/$yt_ver (Linux; U; Android 1$random_no) gzip"
 # youtube music
-yt_music_ver="8.17.52"
+yt_music_ver="8.23.51"
 yt_music_agent="com.google.android.apps.youtube.music/$yt_music_ver (Linux; U; Android 1$random_no) gzip"
 
 

@@ -20,7 +20,6 @@ notify_linux() {
 
 #main
 link="$1"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/13$(head /dev/urandom | tr -dc '0-5' | cut -c1).0.0.0 Safari/537.36"
 
 case $(uname -o) in
 	*ndroid*)
@@ -35,77 +34,9 @@ case $(uname -o) in
 		;;
 esac
 
-printf "\033[1;34m Video link :\033[0m%s\n" "$link"
-case "$link" in
-	*instagram*)
-		app="Instagram"
-		id=$(printf "%s" "$link" | cut -d'/' -f5)
-		[ -z "$id" ] && error "Unable to extract ID" "$app" "$id"
-		info "Decoding ID" "$app" "$id"
-		res=0
-		enc_char="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
-		table=$(printf "%s" "$enc_char" | sed 's/\(.\)/\1\n/g' | nl -v0 | tr '\t' ':' | tr -d ' ')
-		for key in $(printf "%s" "$id" | sed -e 's/\(.\)/\1\n/g'); do
-			value=$(printf "%s" "$table" | sed -nE "s/([^:]*):$key/\1/p")
-			res=$((res * 64 + value))
-		done
+printf "\033[1;34m Video link :\033[0m %s\n" "$link"
 
-		info "Fetching Video URL" "$app" "$id"
-		# main source
-		video_url=$(curl -s "https://i.instagram.com/api/v1/web/get_ruling_for_content/?content_type=MEDIA&target_id=$res" -H "x-ig-app-id:936619743392459" -H "x-ig-www-claim:0" -A "$agent" -c - -o /dev/null | curl -A "$agent" -s -G "https://www.instagram.com/graphql/query/" -H "content-type:application/json" --data-urlencode 'query_hash=9f8827793ef34641b2fb195d4d41151c' --data-urlencode 'variables={"shortcode":"'"$id"'","include_reel":false,"include_logged_out":false}' -e "$link" -b - | tr '{}' '\n' | sed -nE 's|.*video_url":"([^"]*)".*|\1|p' | sed 's/\u0026/\&/g;s/\\//g')
-		# alternate source
-		! printf "%s" "$video_url" | grep -qE 'instagram.*mp4' && info "Using Alternate Site" "Instagram" "$id" && video_url=$(curl -s 'https://snapinsta.net/download.php' --compressed -X POST -H 'User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0' -H 'Referer: https://snapinsta.net/' -H 'Content-Type: application/x-www-form-urlencoded' -H 'Accept-Encoding: gzip, deflate, br, zstd' --data-urlencode "url=$1" | sed 's/\\//g;s/\&amp;/\&/g' | sed -nE 's|.*><a href="([^"]*)" .*|\1|p')
-		#fallback source that is yt-dlp
-		[ -z "$video_url" ] && fallback=1
-		;;
-	*youtu*)
-		app="Youtube"
-		id=$(printf "%s" "$link" | cut -d"=" -f2 | cut -d"/" -f4)
-		[ -z "$id" ] && error "Unable to extract ID" "$app" "$id"
-		info "Fetching Video URL" "$app" "$id"
-		random_no=$(head /dev/urandom | tr -dc '0-4' | cut -c1)
-		andy_yt_ver="19.42.41"
-		extra_up=$((random_no > 1))
-		droid_agent="com.google.android.youtube/$andy_yt_ver (Linux; U; Android 1$random_no) gzip"
-		json="{
-		  \"context\": {
-		    \"client\": {
-		      \"clientName\": \"ANDROID\",
-		      \"clientVersion\": \"$andy_yt_ver\",
-		      \"androidSdkVersion\": $((random_no + extra_up + 29)),
-		      \"userAgent\": \"$droid_agent\",
-		      \"hl\": \"en\",
-		      \"timeZone\": \"Asia/Calcutta\",
-		      \"utcOffsetMinutes\": 330
-		    }
-		  },
-		  \"videoId\": \"$id\",
-		  \"playbackContext\": {
-		    \"contentPlaybackContext\": {
-		      \"html5Preference\": \"HTML5_PREF_WANTS\"
-		    }
-		  },
-		  \"contentCheckOk\": true,
-		  \"racyCheckOk\": true
-		}"
-		# main source
-		video_url=$(curl -X POST -A "$agent" -s "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8&prettyPrint=false" -H "content-type:application/json" -d "$json" -e "$link" | tr '{}' '\n' | sed -nE 's|.*,"title":"([^"]*)".*|\tout=\1\.mp4|p;s|.*itag":18,"url":"([^"]*)".*|\1|p;s|.*itag":22,"url":"([^"]*)".*|\1|p' | tail -2)
-		# fallback source
-		printf "%s" "$video_url" | grep -q "googlevideo\.com" || fallback=1
-		;;
-	*)
-		info "Invalid URL" "none" "none"
-		exit 0
-		;;
-esac
+yt-dlp --no-skip-unavailable-fragments --fragment-retries infinite -N 16 -t mp4 "$link" -o "$download_dir/%(title)s.%(ext)s"
 
-if [ -n "$fallback" ]; then
-	info "Using fallback" "$app" "$id"
-	yt-dlp --no-skip-unavailable-fragments --fragment-retries infinite -N 16 -S 'res,ext:mp4:m4a' --recode mp4 "$link" -o "$download_dir/%(title)s.%(ext)s"
-else
-	info "Downloading Video" "$app" "$id"
-	printf "%s" "$video_url" | aria2c -x16 -s16 -j10 -k'1M' --user-agent="$agent" -d "$download_dir" -i - --download-result=hide --summary-interval=0 || notify_$os "Unable to Download $app Video"
-fi
-
-notify_$os "$app Video Downloaded"
+notify_$os "Video Downloaded"
 exit 0
