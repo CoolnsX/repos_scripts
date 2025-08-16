@@ -99,7 +99,7 @@ mpv_jellyfin() {
 	sub="$JF_URL/Videos/$ITEM_ID/$1/Subtitles/0/0/Stream.ass?api_key=$JF_TOKEN"
 	! curl -s "$sub" | grep -q "Error processing request" && sub_arg="--sub-file=$sub"
 	if uname -o | grep -q 'ndroid'; then
-		printf "Title %s\n" "$2"
+		printf "\nTitle: %s\n" "$2"
 		printf "URL: %s\n" "$url"
 		[ -n "$sub_arg" ] && printf "Sub URL: %s\n" "$sub"
 		return 0
