@@ -93,25 +93,50 @@ mpv_jellyfin() {
 	[ -z "$1" ] && return 0
 	[ -z "$2" ] && return 0
 
+	ITEM_ID=$(printf '%s' "$1" | sed -E 's/(.{8})(.{4})(.{4})(.{4})(.{12})/\1-\2-\3-\4-\5/')
 	success "Playing $2 on mpv"
 	url="$JF_URL/Items/$1/Download?api_key=$JF_TOKEN"
-	sub="$JF_URL/Videos/$(printf '%s' "$1" | sed -E 's/(.{8})(.{4})(.{4})(.{4})(.{12})/\1-\2-\3-\4-\5/')/$1/Subtitles/0/0/Stream.ass?api_key=$JF_TOKEN"
+	sub="$JF_URL/Videos/$ITEM_ID/$1/Subtitles/0/0/Stream.ass?api_key=$JF_TOKEN"
 	! curl -s "$sub" | grep -q "Error processing request" && sub_arg="--sub-file=$sub"
+	if uname -o | grep -q 'ndroid'; then
+		printf "Title %s\n" "$2"
+		printf "URL: %s\n" "$url"
+		[ -n "$sub_arg" ] && printf "Sub URL: %s\n" "$sub"
+		return 0
+	fi
 	#shellcheck disable=SC2086
 	nohup mpv --input-ipc-server="$socket" --start="$((playbackPositionTicks / 10000000))" --force-media-title="$2" "$url" $sub_arg >/dev/null 2>&1 &
-	track_progress "$(printf '%s' "$1" | sed -E 's/(.{8})(.{4})(.{4})(.{4})(.{12})/\1-\2-\3-\4-\5/')"
+	skipPositions=$(curl -s "$JF_URL/Episode/$ITEM_ID/IntroSkipperSegments" -H 'Authorization: MediaBrowser Token="'"$JF_TOKEN"'"' -H "Accept: application/json" | sed -nE 's|.*"Introduction".*"IntroStart":([^\.]*).*,"IntroEnd":([^\.]*).*"Credits".*"IntroStart":([^\.]*).*"IntroEnd":([^\.]*).*|op_start=\1;op_end=\2;ed_start=\3;ed_end=\4|p')
+	track_progress
 }
 
 track_progress() {
-	ITEM_ID=$1
 	\cat <<EOF >"$progress_track_file"
 #!/bin/sh
 
+skipPos(){
+	[ -z "\$3" ] && printf 1 && return 0
+	[ -z "\$4" ] && printf 1 && return 0
+	if [ "\$2" -ge "\$3" ] && [ "\$2" -lt "\$4" ]; then
+		echo '{"command" :["seek" ,"'"\$4"'","absolute"]}' | socat - "$socket" >/dev/null
+		echo '{"command": ["show-text", "'"\$5"'", 3000]}' | socat - "$socket" >/dev/null
+		printf 1
+		return 0
+	fi
+	printf 0
+}
+
 positionTicks=$playbackPositionTicks
+$skipPositions
+introSkipped=0
+outroSkipped=0
 while sleep 5;do
 	position=\$(echo '{"command" :["get_property","playback-time"]}' | socat - "$socket" 2>/dev/null | sed -nE 's_.*data":([^,]*).*_\1_p' | tr -d '.' | sed 's|$|0|g')
 	[ -z "\$position" ] && break
 	positionTicks=\$position
+	positionSec=\$((position / 10000000))
+	[ "\$introSkipped" -eq 0 ] && introSkipped=\$(skipPos "\$introSkipped" "\$positionSec" "\$op_start" "\$op_end" "Intro Skipped")
+	[ "\$outroSkipped" -eq 0 ] && outroSkipped=\$(skipPos "\$outroSkipped" "\$positionSec" "\$ed_start" "\$ed_end" "Outro Skipped")
 done
 [ -n "\$positionTicks" ] && curl -s "$JF_URL/Users/$JF_USER_ID/PlayingItems/$ITEM_ID?positionTicks=\$positionTicks" -X DELETE -H 'Authorization: MediaBrowser Token="'"$JF_TOKEN"'"' -H 'Content-Type: application/json'
 rm "$socket"
@@ -147,7 +172,10 @@ collection() {
 	collection_id=$(printf '%s' "$collection" | cut -f1)
 	collection_title=$(printf '%s' "$collection" | cut -f3 | sed 's|.$||g')
 
-	data=$(get_data "Items?IncludeItemTypes=$collection_title&Recursive=false&ParentId=$collection_id" "Select $collection_title >")
+	recursive="false"
+	[ "$collection_title" = "Movie" ] && recursive="true"
+
+	data=$(get_data "Items?IncludeItemTypes=$collection_title&Recursive=$recursive&ParentId=$collection_id" "Select $collection_title >")
 	[ -z "$data" ] && exit 1
 	id=$(printf "%s" "$data" | cut -f1)
 	title=$(printf "%s" "$data" | cut -f3)

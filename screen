@@ -31,11 +31,7 @@ compress() {
 
 record() {
 	rm -f "$tmp_file" "$process_file"
-	#shellcheck disable=SC2034
-	mic="alsa_input.pci-0000_04_00.6.analog-stereo" #It is called in eval on line 9
-	#shellcheck disable=SC2034
-	speaker="alsa_output.pci-0000_04_00.6.analog-stereo.monitor" #It is called in eval on line 9
-	source=$(printf "screen only\n%s" "$(pactl -f json list sources | sed 's|"index":|\n|g' | sed -nE 's|.*,"name":"([^"]*)","description":"([^"]*)".*|\2\t\1|p')" | menu "Audio Source:" "3")
+	source=$(printf "screen only\n%s" "$(pactl -f json list sources | sed 's|"index":|\n|g' | sed -nE 's|.*,"name":"([^"]*)","description":"([^"]*)".*|\2\t\1|p')" | menu "Audio Source:" "3" | cut -f2)
 
 	[ -z "$source" ] && info "" "2000" "No option Selected" && return 0
 
@@ -43,7 +39,7 @@ record() {
 
 	[ -z "$monitor" ] && info "" "2000" "No option Selected" && return 0
 
-	[ "$source" != "screen only" ] && pactl set-default-source "$(eval "printf \$$source")" && arg=-a
+	[ "$source" != "screen only" ] && pactl set-default-source "$source" && arg=-a
 	#shellcheck disable=SC2086
 	info "simplescreenrecorder" "1000" "Select Region" "Tap/Click to select full" && setsid -f wf-recorder -x yuv420p -f /tmp/screenrecord.mp4 --output "$monitor" $arg -g "$(slurp)" >/dev/null 2>&1
 	info "simplescreenrecorder" "700" "Recording Started" "Capturing $monitor($source)"
