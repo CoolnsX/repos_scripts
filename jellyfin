@@ -99,9 +99,10 @@ mpv_jellyfin() {
 	sub="$JF_URL/Videos/$ITEM_ID/$1/Subtitles/0/0/Stream.ass?api_key=$JF_TOKEN"
 	! curl -s "$sub" | grep -q "Error processing request" && sub_arg="--sub-file=$sub"
 	if uname -o | grep -q 'ndroid'; then
-		printf "\nTitle: %s\n" "$2"
-		printf "URL: %s\n" "$url"
-		[ -n "$sub_arg" ] && printf "Sub URL: %s\n" "$sub"
+		text="Title: $2\nURL: $url\n"
+		[ -n "$sub_arg" ] && text="$text\nSub URL: $sub"
+		printf "\n%s" "$text"
+		printf "%s" "$text" | termux-clipboard-set
 		return 0
 	fi
 	#shellcheck disable=SC2086
