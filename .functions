@@ -1,6 +1,6 @@
 #!/bin/sh
 
-#shellcheck disable=SC2086
+#shellcheck disable=SC2086,SC2068
 
 menu_droid() {
 	fzf --prompt="$1" $2
@@ -20,11 +20,11 @@ search_linux() {
 }
 
 torrent_linux() {
-	setsid -f "$TERMINAL" -e "$(dirname "$0")/torrent" "$1"
+	setsid -f "$TERMINAL" -e "${0%/*}/torrent" $@
 }
 
 torrent_droid() {
-	"$(dirname "$0")/torrent" "$1"
+	"${0%/*}/torrent" $@
 }
 
 info_droid() {

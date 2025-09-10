@@ -15,7 +15,7 @@ down() {
 	error_$os "Torrent: Error!!"
 }
 
-magnet="$*"
+magnet="$1"
 if [ "$(uname -o)" = "Android" ]; then
 	os="droid"
 	script_dir="$HOME/.shortcuts"
@@ -49,7 +49,7 @@ fi
 echo "$magnet"
 printf "${c_yellow}Download>>\n${c_green}[f]ull torrent\n${c_cyan}[p]artial torrent \n${c_red}[q]uit"
 printf "${c_reset}\n\tenter choice:"
-read -r ch
+[ -z "$2" ] && read -r ch || ch=$2
 case $ch in
 	f)
 		down "$magnet"

@@ -15,4 +15,4 @@ name=$(printf "%s" "$data" | sed -nE 's_^.*Please\] (.*)</title>.*size>(.*)</sub
 [ -z "$name" ] && exit 0
 id=$(printf "%s" "$name" | sed -nE 's/.*\[(.*)\].*/\1/p')
 magnet=$(printf "%s" "$data" | sed -nE "s_.*<link>(.*$id.*)</link>.*_\1_p" | sed 's/amp;//g')
-torrent_$os "$magnet"
+torrent_$os "$magnet" "f"
