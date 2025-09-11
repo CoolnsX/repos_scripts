@@ -1,0 +1,51 @@
+#!/bin/sh
+
+#shellcheck disable=SC2162
+
+##########
+# Config #
+##########
+url="<ip_of_ur_esphome_server>:6052"
+fifo_file="${TMPDIR:-/tmp}/${0##*/}-fifo"
+
+info() {
+	#shellcheck disable=SC2059
+	printf "\033[2K\r\033[1;${2:-36}m${1}\033[0m"
+}
+
+err() {
+	info "$1\n" "31"
+}
+
+menu() {
+	fzf --prompt="[Esphome] $1" --layout=reverse --border -d'\t' --with-nth=1
+}
+
+run_command() {
+	# this is done to make sure the file doesn't have anything stale left
+	rm -f "$fifo_file" && mkfifo "$fifo_file"
+	printf "%s\n" "$2" >"$fifo_file" &
+	tail -f "$fifo_file" | websocat "ws://$url/$1" | while read line; do
+		printf "%b\n" "$line" | sed -nE 's|.*"data": "(.*)n"}|\1|p'
+		# exit this loop if we receive exit from response
+		printf "%b\n" "$line" | grep -q '"exit"' && pkill -P $$ tail
+	done
+	rm -f "$fifo_file"
+}
+
+what_to_do=$(printf "logs\nupdate-all\nupdate" | menu "What to Do? >")
+[ -z "$what_to_do" ] && err "Please Select Choice!!" && exit 1
+
+if [ "$what_to_do" = "update-all" ]; then
+	data='{"type":"spawn"}'
+else
+	device=$(curl -s "http://$url/devices" | tr '{}' '\n' | sed -nE 's|.*"friendly_name": "([^"]*)",.*"configuration": "([^"]*)".*|\1\t\2|p' | menu "Select Device >")
+	[ -z "$device" ] && err "Please Select a Device!!" && exit 1
+	dev_name=$(printf "%s" "$device" | cut -f1)
+	dev_config=$(printf "%s" "$device" | cut -f2)
+	info "Running $what_to_do for $dev_name...\n"
+	[ "$what_to_do" = 'update' ] && what_to_do="run"
+	data='{"type":"spawn","configuration":"'"$dev_config"'","port":"OTA"}'
+fi
+
+run_command "$what_to_do" "$data"
