@@ -26,9 +26,9 @@ run_command() {
 	rm -f "$fifo_file" && mkfifo "$fifo_file"
 	printf "%s\n" "$2" >"$fifo_file" &
 	tail -f "$fifo_file" | websocat "ws://$url/$1" | while read line; do
-		printf "%b\n" "$line" | sed -nE 's|.*"data": "(.*)n"}|\1|p'
+		printf "%b\n" "$line" | sed -nE 's|.*"data": "(.*)n"}|\1|p' &
 		# exit this loop if we receive exit from response
-		printf "%b\n" "$line" | grep -q '"exit"' && pkill -P $$ tail
+		printf "%b\n" "$line" | grep -q '"exit"' && pkill -P $$ tail &
 	done
 	rm -f "$fifo_file"
 }
