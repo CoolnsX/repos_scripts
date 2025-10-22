@@ -3,23 +3,56 @@
 #shellcheck disable=SC2317
 
 info() {
-	printf "\033[1;36m[ %s ] [ %s ] %s\033[0m\n" "$2" "$3" "$1"
-}
-
-error() {
-	printf "\033[1;31m[ %s ] [ %s ] %s\033[0m\n" "$2" "$3" "$1"
+	printf "\033[1;36m%s\033[0m\n" "$2" "$3" "$1"
 }
 
 notify_droid() {
+	info "$1"
 	termux-notification -c "$1"
 }
 
 notify_linux() {
+	info "$1"
 	notify-send -e "$1" -h "string:x-canonical-private-synchronous:${0##*/}"
+}
+
+send_matrix_msg() {
+	# file existance
+	[ -f "$1" ] || return 1
+
+	# upload file and get URI
+	file_uri=$(curl "$MX_URL/_matrix/media/v3/upload?filename=$filename" -sX POST -H 'Content-Type: application/octet-stream' -H "Authorization: Bearer $MX_TOKEN" -T "$1" | sed -nE 's|.*"content_uri":"([^"]*)".*|\1|p')
+
+	#extract specific data from metadata
+	filename="${1##*/}"
+	metadata=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -show_format "$1")
+	width=$(printf '%s' "$metadata" | sed -nE 's|^width=([^$]*)|\1|p')
+	height=$(printf '%s' "$metadata" | sed -nE 's|^height=([^$]*)|\1|p')
+	duration=$(printf '%s' "$metadata" | sed -nE 's|^duration=([^$]*)|\1|p')
+	size=$(printf '%s' "$metadata" | sed -nE 's|^size=([^$]*)|\1|p')
+
+	# generate unique key for message
+	uuid=$(uuidgen)
+	json='{
+	  "msgtype": "m.video",
+	  "body": "'"$filename"'",
+	  "info": {
+	    "size": "'"$size"'",
+	    "mimetype": "video/mp4",
+	    "duration": "'"$duration"'",
+	    "w": "'"$width"'",
+	    "h": "'"$height"'"
+	  },
+	  "url": "'"$file_uri"'"
+	}'
+
+	# send a message with media URI
+	curl -sX PUT "$MX_URL/_matrix/client/v3/rooms/${2:-$MX_ROOM}/send/m.room.message/$uuid" -H 'Content-Type: application/json' -H 'Accept: application/json' -H "Authorization: Bearer $MX_TOKEN" -d "$json"
 }
 
 #main
 link="$1"
+yt_dlp_logs="${TMPDIR:-/tmp}/${0##*/}-logs"
 
 case $(uname -o) in
 	*ndroid*)
@@ -34,9 +67,28 @@ case $(uname -o) in
 		;;
 esac
 
-printf "\033[1;34m Video link :\033[0m %s\n" "$link"
+printf "\033[1;34m Video link :\033[0m %s" "$link"
 
-yt-dlp --no-skip-unavailable-fragments --fragment-retries infinite -N 16 -t mp4 "$link" -o "$download_dir/%(title)s.%(ext)s"
+info "Downloading Video.."
 
-notify_$os "Video Downloaded"
+truncate -s0 "$yt_dlp_logs" # truncate file if exists, creates if doesn't exists
+
+yt-dlp --no-skip-unavailable-fragments --fragment-retries infinite -N 16 -t mp4 "$link" -o "$download_dir/%(title)s.%(ext)s" | tee "$yt_dlp_logs"
+
+filepath=$(sed -nE "s|.*($download_dir.*\.mp4).*|\1|p" "$yt_dlp_logs" | head -1)
+
+#shellcheck disable=SC1091
+. "$HOME"/.config/.env
+
+# load matrix creds
+matrix_creds
+
+send_matrix_msg "$filepath"
+
+# unload matrix creds
+matrix_creds "unload"
+
+notify_$os "Video Sent to Matrix"
+
+rm -f "$filepath"
 exit 0

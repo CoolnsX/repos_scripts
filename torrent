@@ -28,7 +28,10 @@ else
 	[ -z "$magnet" ] && magnet="$(wl-paste)"
 	terminal="${TERMINAL:-foot}"
 	prefix="setsid -f $terminal -e"
-	pgrep -af "$0" | grep -q "$terminal" || { $prefix "$0" "$magnet"; exit 0; }
+	pgrep -af "$0" | grep -q "$terminal" || {
+		$prefix "$0" "$magnet"
+		exit 0
+	}
 fi
 
 #import generic functions
@@ -40,7 +43,7 @@ filepath="$HOME/.cache"
 ! printf "%s" "$magnet" | grep -qE "magnet:\?xt=urn:btih:|\.torrent$" && error_$os "Not a valid magnet link!" && exit 0
 
 # check if the variable is actuall magnet-link or file
-if printf '%s' "$magnet" | grep -qE "\.torrent$";then
+if printf '%s' "$magnet" | grep -qE "\.torrent$"; then
 	filepath="$(dirname "$magnet")"
 	file="$(basename "$magnet")"
 	is_file=1
@@ -55,7 +58,7 @@ case $ch in
 		down "$magnet"
 		;;
 	p)
-		if [ -z "$is_file" ];then
+		if [ -z "$is_file" ]; then
 			file="$(printf "%s" "$magnet" | sed -nE 's|.*urn:btih:([^&]*).*|\1|p' | tr '[:upper:]' '[:lower:]').torrent"
 			{ [ -f "$filepath/$file" ] && [ ! -f "$filepath/$file.aria2" ]; } || aria2c --dir="$filepath" --bt-metadata-only=true --bt-save-metadata=true "$magnet" -o "$file"
 		fi
