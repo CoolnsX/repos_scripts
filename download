@@ -1,6 +1,6 @@
 #!/bin/sh
 # script for downloading videos/audios from sites...
-#shellcheck disable=SC2317
+#shellcheck disable=SC2317,SC2329
 
 info() {
 	printf "\033[1;36m%s\033[0m\n" "$2" "$3" "$1"
@@ -28,7 +28,8 @@ send_matrix_msg() {
 	metadata=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -show_format "$1")
 	width=$(printf '%s' "$metadata" | sed -nE 's|^width=([^$]*)|\1|p')
 	height=$(printf '%s' "$metadata" | sed -nE 's|^height=([^$]*)|\1|p')
-	duration=$(printf '%s' "$metadata" | sed -nE 's|^duration=([^$]*)|\1|p')
+	duration=$(printf '%s' "$metadata" | sed -nE 's|^duration=([^$]*)|\1|p' | tr -d '.' | sed 's/...$//')
+	durationMSec=$(printf '%d' "$duration")
 	size=$(printf '%s' "$metadata" | sed -nE 's|^size=([^$]*)|\1|p')
 
 	# generate unique key for message
@@ -39,7 +40,7 @@ send_matrix_msg() {
 	  "info": {
 	    "size": "'"$size"'",
 	    "mimetype": "video/mp4",
-	    "duration": "'"$duration"'",
+	    "duration": "'"$durationMSec"'",
 	    "w": "'"$width"'",
 	    "h": "'"$height"'"
 	  },
