@@ -73,6 +73,7 @@ send_matrix_msg() {
 #main
 link="$1"
 yt_dlp_logs="${TMPDIR:-/tmp}/${0##*/}-logs"
+process_file="${TMPDIR:-/tmp}/processed.mp4"
 
 case $(uname -o) in
 	*ndroid*)
@@ -96,7 +97,6 @@ truncate -s0 "$yt_dlp_logs" # truncate file if exists, creates if doesn't exists
 yt-dlp -S "filesize:10M" -t mp4 "$link" -o "$download_dir/%(title)s.%(ext)s" | tee "$yt_dlp_logs"
 
 filepath=$(sed -nE "s|.*($download_dir.*\.mp4).*|\1|p" "$yt_dlp_logs" | head -1)
-process_file="${TMPDIR:-/tmp}/processed.mp4"
 
 #shellcheck disable=SC1091
 . "$HOME"/.config/.env
@@ -114,5 +114,5 @@ matrix_creds "unload"
 
 notify_$os "Video Sent to Matrix"
 
-rm -f "$filepath" "$process_file"
+rm -f "$filepath" "$process_file" "$yt_dlp_logs"
 exit 0
