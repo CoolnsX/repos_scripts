@@ -13,7 +13,26 @@ notify_droid() {
 
 notify_linux() {
 	info "$1"
-	notify-send -e "$1" -h "string:x-canonical-private-synchronous:${0##*/}"
+	notify-send -e -i "$3" -h "string:x-canonical-private-synchronous:${0##*/}" -t "${2:-5000}" "$1" "$4"
+}
+
+compress() {
+	duration=$(ffprobe -hide_banner -i "$1" 2>&1 | sed -nE 's|.*Duration: ([^,]*).*|\1|p')
+	target_size_mb="${2:-10}"
+	i=20
+
+	while :; do
+		ffmpeg -loglevel error -i "$1" -c:v libx264 -c:a copy -crf "$i" "$process_file" -y -progress - | while read -r line; do
+			complete=$(printf "%s\n" "$line" | sed -nE 's|out_time=(.*)|\1|p')
+			size=$(du -m "$process_file" | cut -f1)
+			[ -n "$complete" ] && notify_$os "Compressing File under $target_size_mb MB Using Quality Preset : $i.." "700" "ffmpeg" "$complete / $duration ($size MB)"
+			[ "$size" -gt "$target_size_mb" ] && killall -s KILL ffmpeg && break
+		done
+		[ "$(du -m "$process_file" | cut -f1)" -lt "$target_size_mb" ] && break
+		: $((i += 1))
+	done
+	notify_$os "File Successfully compressed with Quality Preset : $i" "1000" "ffmpeg"
+	[ -f "$process_file" ] && filepath=$process_file
 }
 
 send_matrix_msg() {
@@ -74,15 +93,19 @@ info "Downloading Video.."
 
 truncate -s0 "$yt_dlp_logs" # truncate file if exists, creates if doesn't exists
 
-yt-dlp --no-skip-unavailable-fragments --fragment-retries infinite -N 16 -t mp4 "$link" -o "$download_dir/%(title)s.%(ext)s" | tee "$yt_dlp_logs"
+yt-dlp -S "filesize:10M" -t mp4 "$link" -o "$download_dir/%(title)s.%(ext)s" | tee "$yt_dlp_logs"
 
 filepath=$(sed -nE "s|.*($download_dir.*\.mp4).*|\1|p" "$yt_dlp_logs" | head -1)
+process_file="${TMPDIR:-/tmp}/processed.mp4"
 
 #shellcheck disable=SC1091
 . "$HOME"/.config/.env
 
 # load matrix creds
 matrix_creds
+
+# compresses the video file under 10 MB
+compress "$filepath"
 
 send_matrix_msg "$filepath"
 
@@ -91,5 +114,5 @@ matrix_creds "unload"
 
 notify_$os "Video Sent to Matrix"
 
-rm -f "$filepath"
+rm -f "$filepath" "$process_file"
 exit 0

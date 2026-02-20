@@ -65,7 +65,7 @@ get_cookies() {
 	# the user has firefox installed
 	if [ ! -f "$HOME/.config/google-chrome/Default/Cookies" ]; then
 		cp "$(find "$HOME/.mozilla" -type f -iname 'cookies.sqlite' | head -1)" "$logdir/cookies.sqlite"
-		sqlite3 "$logdir/cookies.sqlite" "SELECT name, value FROM moz_cookies WHERE host='.youtube.com' and name NOT like 'ST-%' and name NOT like 'VISITOR%' and name NOT like 'PREF%';" | tr '|\n' '=;' >"$cookie"
+		sqlite3 "$logdir/cookies.sqlite" "SELECT name, value FROM moz_cookies WHERE host='.youtube.com' and name NOT like 'ST-%' and name NOT like 'VISITOR%' and name NOT like 'PREF%' and name NOT like '%Secure-%';" | tr '|\n' '=;' >"$cookie"
 		rm "$logdir/cookies.sqlite"
 		return 0
 	fi

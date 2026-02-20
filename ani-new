@@ -76,7 +76,7 @@ printf "%s\n" "$url" | while read -r id title; do
 				subs_flag=
 				[ -n "$subtitle" ] && subs_flag="--sub-file=$subtitle"
 				# shellcheck disable=SC2086
-				player_$os "$provider_video" "$title" --referrer="https://$domain" $subs_flag
+				player_$os "$provider_video" "$title" "--referrer=https://$domain $subs_flag"
 				break
 				;;
 			cast)
