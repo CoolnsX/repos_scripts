@@ -18,7 +18,6 @@ notify_linux() {
 
 compress() {
 	duration=$(ffprobe -hide_banner -i "$1" 2>&1 | sed -nE 's|.*Duration: ([^,]*).*|\1|p')
-	target_size_mb="${2:-10}"
 	i=20
 
 	while :; do
@@ -74,6 +73,7 @@ send_matrix_msg() {
 link="$1"
 yt_dlp_logs="${TMPDIR:-/tmp}/${0##*/}-logs"
 process_file="${TMPDIR:-/tmp}/processed.mp4"
+target_size_mb=10
 
 case $(uname -o) in
 	*ndroid*)
@@ -105,7 +105,7 @@ filepath=$(sed -nE "s|.*($download_dir.*\.mp4).*|\1|p" "$yt_dlp_logs" | head -1)
 matrix_creds
 
 # compresses the video file under 10 MB
-compress "$filepath"
+[ "$(du -m "$filepath" | cut -f1)" -gt "$target_size_mb" ] && compress "$filepath"
 
 send_matrix_msg "$filepath"
 
