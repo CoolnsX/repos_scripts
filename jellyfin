@@ -108,7 +108,7 @@ mpv_jellyfin() {
 	fi
 	#shellcheck disable=SC2086
 	nohup mpv --input-ipc-server="$socket" --start="$((playbackPositionTicks / 10000000))" --force-media-title="$2" "$url" $sub_arg >/dev/null 2>&1 &
-	skipPositions=$(curl -s "$JF_URL/Episode/$1/IntroSkipperSegments" -H 'Authorization: MediaBrowser Token="'"$JF_TOKEN"'"' -H "Accept: application/json" | sed 's|}|\n|g' | sed -nE 's|.*"Introduction".*"IntroStart":([^\.,]*).*,"IntroEnd":([^\.,]*).*|op_start=\1\nop_end=\2|p;s|.*"Credits".*"IntroStart":([^\.,]*).*"IntroEnd":([^\.,]*).*|ed_start=\1\ned_end=\2|p')
+	skipPositions=$(curl -s "$JF_URL/Episode/$1/IntroSkipperSegments" -H 'Authorization: MediaBrowser Token="'"$JF_TOKEN"'"' -H "Accept: application/json" | sed 's|}|\n|g' | sed -nE 's|.*"Introduction".*"Start":([^\.,]*).*,"End":([^\.,]*).*|op_start=\1\nop_end=\2|p;s|.*"Credits".*"Start":([^\.,]*).*"End":([^\.,]*).*|ed_start=\1\ned_end=\2|p')
 	track_progress "$1"
 }
 
@@ -136,7 +136,7 @@ while sleep 5;do
 	position=\$(echo '{"command" :["get_property","playback-time"]}' | socat - "$socket" 2>/dev/null | sed -nE 's_.*data":([^,]*).*_\1_p' | tr -d '.' | sed 's|$|0|g')
 	[ -z "\$position" ] && break
 	positionTicks=\$position
-	positionSec=\${position::-7}
+	positionSec=\${position%???????}
 	[ "\$introSkipped" -eq 0 ] && introSkipped=\$(skipPos "\$introSkipped" "\$positionSec" "\$op_start" "\$op_end" "Intro Skipped")
 	[ "\$outroSkipped" -eq 0 ] && outroSkipped=\$(skipPos "\$outroSkipped" "\$positionSec" "\$ed_start" "\$ed_end" "Outro Skipped")
 done
