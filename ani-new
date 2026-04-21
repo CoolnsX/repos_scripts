@@ -1,12 +1,27 @@
 #!/bin/sh
 
+process_response() {
+    # check data is encrypted, if not, return it as it is
+    if ! printf '%s' "$1" | grep -q '"tobeparsed"';then
+        data=$(printf '%s' "$1" | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":"--([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
+        return 0
+    fi
+
+    # decrypt the data
+    enc_data_base64=$(printf "%s" "$1" | sed -nE 's|.*"tobeparsed":"([^"]*)".*|\1|p')
+    iv="$(printf '%s' "$enc_data_base64" | base64 -d | dd bs=1 count=12 2>/dev/null | od -An -tx1 | tr -d ' \n')00000002"
+    [ "${#iv}" != 32 ] && error_$os "IV not present in response, maybe the episode not released..?" && exit 0
+    data="$(printf '%s' "$enc_data_base64" | base64 -d | dd bs=1 skip=12 2>/dev/null | openssl enc -d -aes-256-ctr -K "cb156d973b237c31a2aa2dbac52dc963da6a2e571968bb69df00242f80c46348" -iv "$iv" -nosalt -nopad 2>/dev/null | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*"sourceUrl":"--([^"]*)".*"sourceName":"([^"]*)".*|\2 :\1|p')"
+}
+
 domain="allanime.day"
+refer="https://allmanga.to"
 run_file="${TMPDIR:-/tmp}/${0##*/}_run"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/13$(head /dev/urandom | tr -dc '0-5' | cut -c1).0.0.0 Safari/537.36"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/14$(head /dev/urandom | tr -dc '5-9' | cut -c1).0.0.0 Safari/537.36"
 debug=$2
 
 \cat <<EOF >"$run_file"
-search() { curl -e "https://allanime.to" -sL -G "https://api.${domain}/api" -A "$agent" --data-urlencode 'query=query(\$search: SearchInput \$limit: Int \$page: Int \$translationType: VaildTranslationTypeEnumType \$countryOrigin: VaildCountryOriginEnumType) { shows( search: \$search limit: \$limit page: \$page translationType: \$translationType countryOrigin: \$countryOrigin ) {edges { _id name lastEpisodeInfo __typename}}}' --data-urlencode 'variables={"search":{"sortBy":"Recent","allowAdult":true,"allowUnknown":true,"query":"'"\$1"'"},"limit":40,"page":1,"translationType":"sub","countryOrigin":"JP"}' | sed 's|Show|\n|g' | sed 's|__typename|\n|g' | sed -nE 's|.*_id":"([^"]*)","name":"([^"]*)".*sub":\{"episodeString":"([^"]*)".*|\1\t\2 Episode \3|p'; }; [ -n "\$2" ] && search "\$1"
+search() { curl -sLXPOST -e "$refer" -H "Content-Type: application/json" "https://api.${domain}/api" -A "$agent" --data '{"variables":{"search":{"sortBy":"Recent","allowAdult":true,"allowUnknown":true,"query":"'"\$1"'"},"limit":40,"page":1,"translationType":"sub","countryOrigin":"JP"},"query":"query(\$search: SearchInput \$limit: Int \$page: Int \$translationType: VaildTranslationTypeEnumType \$countryOrigin: VaildCountryOriginEnumType) { shows( search: \$search limit: \$limit page: \$page translationType: \$translationType countryOrigin: \$countryOrigin ) {edges { _id name lastEpisodeInfo __typename}}}"}' | sed 's|Show|\n|g' | sed 's|__typename|\n|g' | sed -nE 's|.*_id":"([^"]*)","name":"([^"]*)".*sub":\{"episodeString":"([^"]*)".*|\1\t\2 Episode \3|p'; }; [ -n "\$2" ] && search "\$1"
 EOF
 
 chmod +x "$run_file"
@@ -48,7 +63,8 @@ printf "%s\n" "$url" | while read -r id title; do
 	[ -n "$debug" ] && printf "\n\033[1;36m title\033[0m : %s\n" "$title"
 
 	#shellcheck disable=SC2016
-	data=$(curl -e "https://allanime.to" -sL -G "https://api.${domain}/api" -A "$agent" --data-urlencode "variables={\"showId\":\"$id\",\"translationType\":\"sub\",\"countryOrigin\":\"ALL\",\"episodeString\":\"$ep_no\"}" --data-urlencode 'query=query ($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episodeString: String!) { episode( showId: $showId translationType: $translationType episodeString: $episodeString ) { episodeString sourceUrls }}' | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":"--([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
+	process_response "$(curl -e "$refer" -sLX POST -H "Content-Type: application/json" "https://api.${domain}/api" -A "$agent" --data '{"variables":{"showId":"'"$id"'","episodeString":"'"$ep_no"'","translationType":"sub","countryOrigin":"ALL"},"query":"query ($showId: String!, $translationType: VaildTranslationTypeEnumType!, $episodeString: String!) { episode( showId: $showId translationType: $translationType episodeString: $episodeString ) { episodeString sourceUrls }}"}')"
+
 	info_$os "Fetching Embed links"
 
 	printf 'sharepoint\tS-mp4\nYoutube\tYt-mp4\nhianime\tLuf-Mp4\n' | while read -r provider_name provider_regex; do
@@ -58,7 +74,7 @@ printf "%s\n" "$url" | while read -r id title; do
 		if printf '%s' "$provider_id" | grep -q "https:"; then
 			provider_video=$provider_id
 		else
-			response=$(curl -s "https://${domain}${provider_id}")
+			response=$(curl -e "$refer" -A "$agent" -s "https://${domain}${provider_id}")
 			provider_video=$(printf '%s' "$response" | sed 's|},{|\n|g' | sed -nE 's|.*link":"([^"]*)".*"resolutionStr":"([^"]*)".*|\1|p;s|.*hls","url":"([^"]*)".*"hardsub_lang":"en-US".*|\1|p' | head -1)
 			if [ "$provider_name" = "hianime" ]; then
 				subtitle=$(printf '%s' "$response" | sed -nE 's|.*"subtitles":\[\{"lang":"en","label":"English","default":"default","src":"([^"]*)".*|\1|p')
