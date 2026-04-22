@@ -9,9 +9,9 @@ process_response() {
 
     # decrypt the data
     enc_data_base64=$(printf "%s" "$1" | sed -nE 's|.*"tobeparsed":"([^"]*)".*|\1|p')
-    iv="$(printf '%s' "$enc_data_base64" | base64 -d | dd bs=1 count=12 2>/dev/null | od -An -tx1 | tr -d ' \n')00000002"
+    iv="$(printf '%s' "$enc_data_base64" | base64 -d | dd bs=1 skip=1 count=12 2>/dev/null | od -An -tx1 | tr -d ' \n')00000002"
     [ "${#iv}" != 32 ] && error_$os "IV not present in response, maybe the episode not released..?" && exit 0
-    data="$(printf '%s' "$enc_data_base64" | base64 -d | dd bs=1 skip=12 2>/dev/null | openssl enc -d -aes-256-ctr -K "cb156d973b237c31a2aa2dbac52dc963da6a2e571968bb69df00242f80c46348" -iv "$iv" -nosalt -nopad 2>/dev/null | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*"sourceUrl":"--([^"]*)".*"sourceName":"([^"]*)".*|\2 :\1|p')"
+    data="$(printf '%s' "$enc_data_base64" | base64 -d | dd bs=1 skip=13 2>/dev/null | openssl enc -d -aes-256-ctr -K "a254aa27c410f297bd04ba33a0c0df7ff4e706bf3ae27271c6703f84e750f552" -iv "$iv" -nosalt -nopad 2>/dev/null | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*"sourceUrl":"--([^"]*)".*"sourceName":"([^"]*)".*|\2 :\1|p')"
 }
 
 domain="allanime.day"
