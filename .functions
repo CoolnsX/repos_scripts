@@ -46,7 +46,7 @@ error_linux() {
 player_droid() {
     file="/storage/emulated/0/.mpv/mpv.config.mp4"
     if [ ! -w "$file" ]; then
-        printf "\033[1;31mCannot write\033[0m → $file\n"
+        printf "\n\033[1;31mCannot write\033[0m → $file\n"
         printf "\033[1;36mRun:\033[0m termux-setup-storage\n\n"
         printf "\033[1;36mThen:\033[0m\n"
         printf "> allow storage permission\n"
