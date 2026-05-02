@@ -44,9 +44,9 @@ error_linux() {
 }
 
 player_droid() {
-    dir="/storage/emulated/0/.mpv"
+    dir="/sdcard/mpv"
     file="$dir/mpv.config.mp4"
-    if [ -w "${dir%*/.mpv}" ]; then
+    if [ -w "${dir%*/mpv}" ]; then
 	[ -d "${dir}" ] || mkdir "${dir}"
         printf "%s" "$3" | sed 's| --|\n|g; s|^--||g' > "$file"
 	sleep 10 && : > "$file" &
@@ -57,7 +57,6 @@ player_droid() {
         printf "> allow storage permission\n"
         printf "> add → include='$file'\n"
         printf "  to MPV → Settings > Advanced > mpv.conf\n"
-        printf "  Make sure to press enter after pasting the content above for MPV to recognise it.."
     fi
 	am start --user 0 -a android.intent.action.VIEW -d "$1" -n is.xyz.mpv/.MPVActivity -e "title" "$2" >/dev/null 2>&1
 	#am start --user 0 -a android.intent.action.VIEW -d "$1" -n org.videolan.vlc/org.videolan.vlc.gui.video.VideoPlayerActivity -e "title" "$2" >/dev/null 2>&1
