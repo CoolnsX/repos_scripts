@@ -71,7 +71,7 @@ printf "%s\n" "$url" | while read -r id title; do
 
 		case $provider_name in
 			mp4upload)
-			    provider_video=$(curl -sLk "$provider_id" -A "$agent" -e "$refer" | sed -nE 's|.* src: "([^"]*)"|\1|p')
+			    provider_video=$(curl -sLk "$provider_id" -A "$agent" -e "$refer" | sed -nE 's|.*src: "([^"]*)"[[:space:]]*|\1|p')
 				refer="$provider_id"
 				;;
 			Youtube)
