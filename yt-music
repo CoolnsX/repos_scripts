@@ -116,7 +116,7 @@ get_song_lyrics() {
 		    \"client\": {
 		      \"clientName\": \"ANDROID_MUSIC\",
 		      \"clientVersion\": \"$yt_music_ver\",
-		      \"androidSdkVersion\": $((random_no + extra_up + 29)),
+		      \"androidSdkVersion\": $((random_no + 30)),
 		      \"userAgent\": \"$yt_music_agent\",
 		      \"hl\": \"en\",
 		      \"timeZone\": \"UTC\",
@@ -164,7 +164,7 @@ play() {
 	    \"client\": {
 	      \"clientName\": \"ANDROID\",
 	      \"clientVersion\": \"$yt_ver\",
-	      \"androidSdkVersion\": $((random_no + extra_up + 29)),
+	      \"androidSdkVersion\": $((random_no + 30)),
 	      \"userAgent\": \"$yt_agent\",
 	      \"hl\": \"en\",
 	      \"timeZone\": \"UTC\",
@@ -212,7 +212,7 @@ search_play() {
 	[ -z "$query" ] && notify-send -e "Err.. Search query empty" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && exit 1
 
 	#storing context
-	printf '{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20250616.03.00"}}' >"$logdir/context"
+	printf '%s' "$web_context" >"$logdir/context"
 	#extracting your cookies so that the song list are according to your taste
 	get_cookies
 
@@ -277,19 +277,19 @@ base_url="https://music.youtube.com"
 cookie="$logdir/cookies"
 
 # user agents, used by script
-random_no=$(head /dev/urandom | tr -dc '4-7' | cut -c1)
+random_no=$(head /dev/urandom | tr -dc '4-8' | cut -c1)
 # web
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/13$random_no.0.0.0 Safari/537.36"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/14$random_no.0.0.0 Safari/537.36"
 # random number for android
-random_no=$(head /dev/urandom | tr -dc '1-5' | cut -c1)
-# android
-extra_up=$((random_no > 1))
+random_no=$(head /dev/urandom | tr -dc '2-6' | cut -c1)
 # youtube
-yt_ver="20.23.40"
+yt_ver="21.22.165"
 yt_agent="com.google.android.youtube/$yt_ver (Linux; U; Android 1$random_no) gzip"
 # youtube music
-yt_music_ver="8.23.51"
+yt_music_ver="9.21.51"
 yt_music_agent="com.google.android.apps.youtube.music/$yt_music_ver (Linux; U; Android 1$random_no) gzip"
+# web context
+web_context='{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20260531.05.00"}}'
 
 #call this script by script-name "function_name" "query"
 [ -z "$1" ] && help "$@"

@@ -18,12 +18,10 @@ down() {
 magnet="$1"
 if [ "$(uname -o)" = "Android" ]; then
 	os="droid"
-	script_dir="$HOME/.shortcuts"
 	download_dir="/sdcard"
 	[ -z "$magnet" ] && magnet="$(termux-clipboard-get)"
 else
 	os="linux"
-	script_dir="$HOME/repos_scripts"
 	download_dir="$HOME/Softwares"
 	[ -z "$magnet" ] && magnet="$(wl-paste)"
 	terminal="${TERMINAL:-foot}"
@@ -36,7 +34,7 @@ fi
 
 #import generic functions
 # shellcheck source=./.functions
-. "$script_dir/.functions"
+. "$(dirname "$0")"/.functions
 
 filepath="$HOME/.cache"
 #check if the url is magnet

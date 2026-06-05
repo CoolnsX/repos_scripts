@@ -87,7 +87,10 @@ stop() {
 			defaultname="screenrecord-$(date +"%F_%H-%M-%S").mp4"
 			filename=$(: | menu "Enter Filename (default: $defaultname):")
 			[ -z "$filename" ] && filename=$defaultname
-			mv "$tmp_file" "$HOME/$filename"
+			directory="${XDG_VIDEO_DIR:-$HOME/videos}"
+			[ -d "$directory" ] || mkdir -p "$directory"
+			mv "$tmp_file" "$directory/$filename"
+			info "kfloppy" "2000" "Saved as $directory/$filename"
 			;;
 
 		*)

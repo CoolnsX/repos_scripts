@@ -2,14 +2,14 @@
 
 # shellcheck disable=SC1091,SC1090
 process_response() {
-    enc_data_base64=$(printf "%s" "$1" | sed -nE 's|.*"tobeparsed":"([^"]*)".*|\1|p')
-    iv="$(printf '%s' "$enc_data_base64" | base64 -d | dd bs=1 skip=1 count=12 2>/dev/null | od -An -tx1 | tr -d ' \n')00000002"
-    [ "${#iv}" != 32 ] && error_$os "IV not present in response, maybe the episode not released..?" && exit 0
-    data="$(printf '%s' "$enc_data_base64" | base64 -d | dd bs=1 skip=13 2>/dev/null | openssl enc -d -aes-256-ctr -K "a254aa27c410f297bd04ba33a0c0df7ff4e706bf3ae27271c6703f84e750f552" -iv "$iv" -nosalt -nopad 2>/dev/null | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*"sourceUrl":"([^"]*)".*"sourceName":"([^"]*)".*|\2 :\1|p')"
+	enc_data_base64=$(printf "%s" "$1" | sed -nE 's|.*"tobeparsed":"([^"]*)".*|\1|p')
+	iv="$(printf '%s' "$enc_data_base64" | base64 -d | dd bs=1 skip=1 count=12 2>/dev/null | od -An -tx1 | tr -d ' \n')00000002"
+	[ "${#iv}" != 32 ] && error_$os "IV not present in response, maybe the episode not released..?" && exit 0
+	data="$(printf '%s' "$enc_data_base64" | base64 -d | dd bs=1 skip=13 2>/dev/null | openssl enc -d -aes-256-ctr -K "a254aa27c410f297bd04ba33a0c0df7ff4e706bf3ae27271c6703f84e750f552" -iv "$iv" -nosalt -nopad 2>/dev/null | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*"sourceUrl":"([^"]*)".*"sourceName":"([^"]*)".*|\2 :\1|p')"
 }
 
 hex_decrypt() {
-    printf '%s' "$1" | sed 's/../&\n/g' | sed 's/^--$/\n/g;s/^79$/A/g;s/^7a$/B/g;s/^7b$/C/g;s/^7c$/D/g;s/^7d$/E/g;s/^7e$/F/g;s/^7f$/G/g;s/^70$/H/g;s/^71$/I/g;s/^72$/J/g;s/^73$/K/g;s/^74$/L/g;s/^75$/M/g;s/^76$/N/g;s/^77$/O/g;s/^68$/P/g;s/^69$/Q/g;s/^6a$/R/g;s/^6b$/S/g;s/^6c$/T/g;s/^6d$/U/g;s/^6e$/V/g;s/^6f$/W/g;s/^60$/X/g;s/^61$/Y/g;s/^62$/Z/g;s/^59$/a/g;s/^5a$/b/g;s/^5b$/c/g;s/^5c$/d/g;s/^5d$/e/g;s/^5e$/f/g;s/^5f$/g/g;s/^50$/h/g;s/^51$/i/g;s/^52$/j/g;s/^53$/k/g;s/^54$/l/g;s/^55$/m/g;s/^56$/n/g;s/^57$/o/g;s/^48$/p/g;s/^49$/q/g;s/^4a$/r/g;s/^4b$/s/g;s/^4c$/t/g;s/^4d$/u/g;s/^4e$/v/g;s/^4f$/w/g;s/^40$/x/g;s/^41$/y/g;s/^42$/z/g;s/^08$/0/g;s/^09$/1/g;s/^0a$/2/g;s/^0b$/3/g;s/^0c$/4/g;s/^0d$/5/g;s/^0e$/6/g;s/^0f$/7/g;s/^00$/8/g;s/^01$/9/g;s/^15$/-/g;s/^16$/./g;s/^67$/_/g;s/^46$/~/g;s/^02$/:/g;s/^17$/\//g;s/^07$/?/g;s/^1b$/#/g;s/^63$/\[/g;s/^65$/\]/g;s/^78$/@/g;s/^19$/!/g;s/^1c$/$/g;s/^1e$/&/g;s/^10$/\(/g;s/^11$/\)/g;s/^12$/*/g;s/^13$/+/g;s/^14$/,/g;s/^03$/;/g;s/^05$/=/g;s/^1d$/%/g;' | tr -d '\n'
+	printf '%s' "$1" | sed 's/../&\n/g' | sed 's/^--$/\n/g;s/^79$/A/g;s/^7a$/B/g;s/^7b$/C/g;s/^7c$/D/g;s/^7d$/E/g;s/^7e$/F/g;s/^7f$/G/g;s/^70$/H/g;s/^71$/I/g;s/^72$/J/g;s/^73$/K/g;s/^74$/L/g;s/^75$/M/g;s/^76$/N/g;s/^77$/O/g;s/^68$/P/g;s/^69$/Q/g;s/^6a$/R/g;s/^6b$/S/g;s/^6c$/T/g;s/^6d$/U/g;s/^6e$/V/g;s/^6f$/W/g;s/^60$/X/g;s/^61$/Y/g;s/^62$/Z/g;s/^59$/a/g;s/^5a$/b/g;s/^5b$/c/g;s/^5c$/d/g;s/^5d$/e/g;s/^5e$/f/g;s/^5f$/g/g;s/^50$/h/g;s/^51$/i/g;s/^52$/j/g;s/^53$/k/g;s/^54$/l/g;s/^55$/m/g;s/^56$/n/g;s/^57$/o/g;s/^48$/p/g;s/^49$/q/g;s/^4a$/r/g;s/^4b$/s/g;s/^4c$/t/g;s/^4d$/u/g;s/^4e$/v/g;s/^4f$/w/g;s/^40$/x/g;s/^41$/y/g;s/^42$/z/g;s/^08$/0/g;s/^09$/1/g;s/^0a$/2/g;s/^0b$/3/g;s/^0c$/4/g;s/^0d$/5/g;s/^0e$/6/g;s/^0f$/7/g;s/^00$/8/g;s/^01$/9/g;s/^15$/-/g;s/^16$/./g;s/^67$/_/g;s/^46$/~/g;s/^02$/:/g;s/^17$/\//g;s/^07$/?/g;s/^1b$/#/g;s/^63$/\[/g;s/^65$/\]/g;s/^78$/@/g;s/^19$/!/g;s/^1c$/$/g;s/^1e$/&/g;s/^10$/\(/g;s/^11$/\)/g;s/^12$/*/g;s/^13$/+/g;s/^14$/,/g;s/^03$/;/g;s/^05$/=/g;s/^1d$/%/g;' | tr -d '\n'
 }
 
 domain="allanime.day"
@@ -66,19 +66,19 @@ printf "%s\n" "$url" | while read -r id title; do
 
 	printf 'sharepoint\tS-mp4\nYoutube\tYt-mp4\nmp4upload\tMp4\n' | while read -r provider_name provider_regex; do
 		info_$os "Fetching $provider_name links"
-        provider_id="$(printf "%s" "$data" | sed -n "/$provider_regex :/p" | cut -d':' -f2-)"
-        [ -z "$provider_id" ] && continue
+		provider_id="$(printf "%s" "$data" | sed -n "/$provider_regex :/p" | cut -d':' -f2-)"
+		[ -z "$provider_id" ] && continue
 
 		case $provider_name in
 			mp4upload)
-			    provider_video=$(curl -sLk "$provider_id" -A "$agent" -e "$refer" | sed -nE 's|.*src: "([^"]*)"[[:space:]]*|\1|p')
+				provider_video=$(curl -sLk "$provider_id" -A "$agent" -e "$refer" | sed -nE 's|.*src: "([^"]*)"[[:space:]]*|\1|p')
 				refer="$provider_id"
 				;;
 			Youtube)
-			    provider_video=$(hex_decrypt "$provider_id")
-			    ;;
+				provider_video=$(hex_decrypt "$provider_id")
+				;;
 			*)
-			    provider_id="$(hex_decrypt "$provider_id" | sed "s/\/clock/\/clock\.json/")"
+				provider_id="$(hex_decrypt "$provider_id" | sed "s/\/clock/\/clock\.json/")"
 				provider_video=$(curl -e "$refer" -A "$agent" -s "https://${domain}${provider_id}" | sed 's|},{|\n|g' | sed -nE 's|.*link":"([^"]*)".*"resolutionStr":"([^"]*)".*|\1|p;s|.*hls","url":"([^"]*)".*"hardsub_lang":"en-US".*|\1|p' | head -1)
 				;;
 		esac
@@ -92,7 +92,7 @@ printf "%s\n" "$url" | while read -r id title; do
 			stream)
 				info_$os "opening $title" "mpv"
 				# shellcheck disable=SC2086
-				player_$os "$provider_video" "$title" "--referrer='$refer' --tls-verify=no"
+				player_$os "$provider_video" "$title" --referrer="$refer" --tls-verify=no --user-agent="$agent"
 				break
 				;;
 			cast)
