@@ -264,7 +264,7 @@ play_next() {
 
 menu() {
 	if command -v bemenu >/dev/null; then
-		bemenu -R 20 --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 3 -p "$1" -l 26 -I "${2:-0}" -P ">>" --bdr="#$GLOBAL_ACCENT" --tf="#$GLOBAL_ACCENT" --hf="#$GLOBAL_ACCENT"
+		bemenu -R 20 --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 2 -p "$1" -l 26 -I "${2:-0}" -P ">>" --bdr="#$GLOBAL_ACCENT" --tf="#$GLOBAL_ACCENT" --hf="#$GLOBAL_ACCENT"
 	else
 		fzf --prompt="$1" --height=25 --reverse --border=horizontal --header="${2:-0}" --marker=">>"
 	fi
