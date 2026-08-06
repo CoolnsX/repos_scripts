@@ -72,5 +72,7 @@ player_linux() {
 	title=$2
 	shift 2
 
-	setsid -f mpv "$url" --force-media-title="$title" $@
+	agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/15$(head /dev/urandom | tr -dc '0-2' | cut -c1).0.0.0 Safari/537.36"
+
+	nohup mpv --user-agent="$agent" "$url" --force-media-title="$title" $@ >/dev/null 2>&1 &
 }

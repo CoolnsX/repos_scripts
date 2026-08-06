@@ -15,7 +15,7 @@ hex_decrypt() {
 domain="allanime.day"
 refer="https://youtu-chan.com"
 run_file="${TMPDIR:-/tmp}/${0##*/}_run"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/14$(head /dev/urandom | tr -dc '5-9' | cut -c1).0.0.0 Safari/537.36"
+agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/15$(head /dev/urandom | tr -dc '0-2' | cut -c1).0.0.0 Safari/537.36"
 debug=$2
 
 \cat <<EOF >"$run_file"
@@ -92,7 +92,7 @@ printf "%s\n" "$url" | while read -r id title; do
 			stream)
 				info_$os "opening $title" "mpv"
 				# shellcheck disable=SC2086
-				player_$os "$provider_video" "$title" --referrer="$refer" --tls-verify=no --user-agent="$agent"
+				player_$os "$provider_video" "$title" --referrer="$refer" --tls-verify=no
 				break
 				;;
 			cast)

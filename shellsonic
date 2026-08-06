@@ -1,0 +1,294 @@
+#!/bin/sh
+
+#######
+# UI #
+#######
+
+help() {
+	case $1 in
+		search*)
+			name="search_play"
+			args='"search_query"'
+			description="this function first searches the $args, then opens the menu(fzf,[d|be]menu,[t|r|w]ofi) with the results,then calls the play function to play the music"
+			;;
+		loop)
+			name="loop"
+			args='"print"'
+			description="this function runs in a loop to play the next music if the current music is successfully finished
+			this function should be put as background process or put it in startup
+			passing print argument will show the progress to stdout"
+			;;
+		play*)
+			name="play_next"
+			args='"menu"'
+			description="immediately plays the next song stored in $tmpdir/next file in mpv if argument is empty
+			passing $args argument will show the $args(fzf,[d|be]menu,[t|r|w]ofi) for selecting what should be played"
+			;;
+		*)
+			name="[ <function_name> ]"
+			args="[ <function_arg> ]"
+			description="
+			<function_name>	<function_arg>	<function_description>
+
+			search_play	search_query	searches first then plays the music in mpv
+			play_next	menu(optional)	plays the next music in $tmpdir/next file
+			loop		print(optional)	plays the next music after the current is finished (run it as background process)
+
+			tip:
+			type ${0##*/} help <function_name> to get individual help
+			"
+			;;
+	esac
+	while read -r line; do
+		printf "%s\n" "$line"
+	done <<-EOF
+
+		Usage :
+		${0##*/} $name $args
+
+		Description :
+		$description
+	EOF
+	exit 0
+}
+
+info() {
+	#shellcheck disable=SC2059
+	printf "\033[2K\r\033[1;${2:-36}m${1}\033[0m"
+}
+
+success() {
+	info "$1" "32"
+}
+
+ask() {
+	info "$1" "33"
+}
+
+err() {
+	info "$1\n" "31"
+}
+
+menu() {
+	if command -v bemenu >/dev/null; then
+		bemenu -R 20 $3 --accept-single --fn 'IBM Plex Sans 15' -i -c -W 0.5 -B 2 -p "$1" -l 26 -I "${2:-0}" -P ">>" --bdr="#$GLOBAL_ACCENT" --tf="#$GLOBAL_ACCENT" --hf="#$GLOBAL_ACCENT"
+	else
+		fzf --prompt="$1" --height=25 --reverse --border=horizontal --header="${2:-0}" --marker=">>"
+	fi
+}
+
+cleanup_shit() {
+	rm -rdf "$tmpdir"
+	exit 0
+}
+
+##########
+# CONFIG #
+##########
+
+save_config() {
+	grep -q "^$1=" "$config_file" && sed -i "s|$1=.*|$1=$2|g" "$config_file" >/dev/null 2>&1 || printf "%s=%s\n" "$1" "$2" >>"$config_file"
+	[ -z "$3" ] && success "$1 Saved in config, to override config values pass it as environment variable\n"
+}
+
+ensure_config() {
+	grep -qE "$1=(.+)" "$config_file" && return 0
+	ask "$2"
+	read -r query
+	save_config "$1" "$query"
+	unset query
+}
+
+setup() {
+	info "Checking Config.."
+	[ -f "$config_file" ] || : >"$config_file"
+	ensure_config "SS_URL" "Where is Subsonic Server hosted? : "
+	ensure_config "SS_USER" "Please type the username : "
+	ensure_config "SS_PASS" "Please type the password : "
+
+	# shellcheck source=/dev/null
+	. "$config_file"
+
+	info "Checking Auth..."
+	case "$(subsonic_api "getUser" "username=$SS_USER")" in
+		*'"status":"ok"'*)
+			info ""
+			return 0
+			;;
+		*'"code":40'* | *'"message":"Wrong username or password"'*)
+			err "Wrong username or password."
+			save_config "SS_USER" "" "noprint"
+			save_config "SS_PASS" "" "noprint"
+			unset SS_USER SS_PASS
+			exit 1
+			;;
+		*)
+			err "Unable to connect to server."
+			exit 1
+			;;
+	esac
+}
+
+###########
+# NETWORK #
+###########
+
+prepare_token() {
+	SALT="$(tr -dc '[:alnum:]' </dev/urandom | head -c16)"
+	TOKEN="$(printf '%s%s' "$SS_PASS" "$SALT" | md5sum | cut -d' ' -f1)"
+}
+
+subsonic_api() {
+	prepare_token
+	curl -s -A "$AGENT" "$SS_URL/rest/${1}?u=$SS_USER&t=$TOKEN&s=$SALT&v=$API_VERSION&c=${0##*/}&f=json&${2}" -X "${3:-GET}"
+}
+
+get_list() {
+	subsonic_api "$1" "$2" | sed 's/movements/\n/g' | sed -nE 's|.*\{"id":"([^"]*)",.*"title":"([^"]*)","album":".*","artist":"([^"]*)".*"coverArt":"([^"]*)",.*|\2 BY \3\t\1\t\4|p'
+}
+
+get_music_list() {
+	artist_id=$(subsonic_api "getSong" "id=$id" | sed -nE 's|.*"artistId":"([^"]*)",.*|\1|p')
+
+	similarsongs2=$(get_list "getSimilarSongs2" "id=$artist_id&count=25")
+	#shellcheck disable=SC1091,SC2094
+	[ -n "$similarsongs2" ] && printf '%s' "$similarsongs2" | sed -e "$(cut -f2 "$tmpdir/next" | sed 's|^|/|g;s|$|/d|g')" | sed "s/\\\u0026/and/g;s/'/-/g" >>"$tmpdir/next"
+
+	similarsongs=$(get_list "getSimilarSongs" "id=$id&count=25")
+	#shellcheck disable=SC1091,SC2094
+	[ -n "$similarsongs" ] && printf '%s' "$similarsongs" | sed -e "$(cut -f2 "$tmpdir/next" | sed 's|^|/|g;s|$|/d|g')" | sed "s/\\\u0026/and/g;s/'/-/g" >>"$tmpdir/next"
+
+	#shellcheck disable=SC1091,SC2094
+	[ -z "$similarsongs" ] && [ -z "$similarsongs2" ] && get_list "getRandomSongs" "count=25" | sed -e "$(cut -f2 "$tmpdir/next" | sed 's|^|/|g;s|$|/d|g')" | sed "s/\\\u0026/and/g;s/'/-/g" >>"$tmpdir/next"
+}
+
+process_lyric_line() {
+	timestamp="$(printf '%s' "$1" | cut -d']' -f1 | tr -d '[')"
+	text="$(printf '%s' "$1" | cut -d']' -f2- | sed 's/^[[:space:]]*//g')"
+	m=${timestamp%%:*}
+	s=${timestamp#*:}
+	s=$(printf '%s' "$s" | tr -d '.' | sed 's/^[0]*//g')
+	ms=$((m * 60000 + s * 10))
+	printf "%s\t%s\n" "$ms" "$text" | sed 's/\(\(\w\w*\W*\)\{10\}\)/\1\\n/g'
+}
+
+get_lyrics() {
+	ffprobe -v quiet -show_entries "format_tags=lyrics" -of "default=noprint_wrappers=1:nokey=1" "$stream_url" | while IFS= read -r line; do
+		process_lyric_line "$line" &
+	done | sort -h >"$tmpdir/lyrics"
+}
+
+#############
+# FUNCTIONS #
+#############
+
+loop() {
+	#this function does exactly what it says, it should run in the background
+	#it plays next song after the current song get played completely,it does nothing until u run the search_play function then this code kicks in
+	trap cleanup_shit INT HUP TERM
+	socat -U - "UNIX-CONNECT:$socket" | while read -r event; do
+		#look for eof event
+		if printf "%s" "$event" | grep -q "end-file.*eof"; then
+			i=$(cat "$tmpdir/counter")
+			: $((i += 1))
+			pgrep -f "$socket" >/dev/null || continue
+			[ -n "$(cat "$tmpdir/next")" ]
+			play "$(sed -n "$((i += 1))p" "$tmpdir/next")" "$1"
+			printf '%s' "$i" >"$tmpdir/counter"
+			# shellcheck source=/tmp/yt-music/current
+			# shellcheck disable=SC1091
+			. "$tmpdir/current"
+			tail -1 "$tmpdir/next" | grep -q "$ID" && get_music_list
+		fi
+	done
+	cleanup_shit
+}
+
+search_play() {
+	[ -z "$1" ] && query=$(: | menu "SS-music [Search]:") || query="$1"
+	[ -z "$query" ] && notify-send -e "Err.. Search query empty" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && exit 1
+	song=$(get_list "search3" "query=$(printf '%s' "$query" | tr ' ' '+')" | menu "SS-music [Play]:" "" "--ifne")
+
+	printf '' >"$tmpdir/next"
+	printf "%s\n" "$song" >>"$tmpdir/next"
+	printf "%s" "$song" | cut -f2 >"$tmpdir/start"
+	printf "0" >"$tmpdir/counter"
+	[ -z "$song" ] || play "$song" "verbose" "1"
+}
+
+play() {
+	title=$(printf '%s' "$1" | cut -f1)
+	id=$(printf '%s' "$1" | cut -f2)
+	coverId=$(printf '%s' "$1" | cut -f3)
+	[ -z "$id" ] && err "[ subsonic ] Invalid Id" && exit 1
+
+	prepare_token
+	stream_url="$SS_URL/rest/stream?id=$id&u=$SS_USER&t=$TOKEN&s=$SALT&v=$API_VERSION&c=${0##*/}"
+
+	if [ -n "$2" ]; then
+		success "Playing $title on mpv\n"
+	fi
+
+	curl -s "$SS_URL/rest/getCoverArt?id=$coverId&u=$SS_USER&t=$TOKEN&s=$SALT&v=$API_VERSION&c=${0##*/}&size=300" -o "$tmpdir/default.jpg" && notify-send -e -h "string:x-canonical-private-synchronous:${0##*/}" -i "$tmpdir/default.jpg" "Now Playing" "$title" -t 5000
+	pgrep -f "$socket" >/dev/null || setsid -f mpv --really-quiet --input-ipc-server="$socket" --idle --quiet --no-audio-display >/dev/null
+	while [ ! -S "$socket" ]; do sleep 1; done
+	printf '{"command":["loadfile","%s","replace"]}\n' "$stream_url" | socat -u - "$socket"
+	song_title="${title%% BY *}"
+	artist="${title#* BY }"
+	printf 'SONG="%s"\nARTIST="%s"\nID="%s"' "$song_title" "$artist" "$id" >"$tmpdir/current"
+
+	get_lyrics "$stream_url" &
+	[ -n "$3" ] && get_music_list "$id" &
+
+	pgrep -f "${0##*/} loop" >/dev/null || setsid -f "$0" loop
+}
+
+play_next() {
+	#call this by script-name "play_next" for playing next song immediately
+	#or add "menu" after "play_next" to show menu for selecting and playing next song immediately
+	#like this script-name "play_next" "menu"
+	pgrep -f "$socket" || return 0
+	i=$(cat "$tmpdir/counter")
+	if [ -z "$1" ]; then
+		: $((i += 1))
+		play "$(sed -n "$((i += 1))p" "$tmpdir/next")" "$1"
+	else
+		#shellcheck source=/dev/null
+		#shellcheck disable=SC1091
+		[ -f "$tmpdir/current" ] && . "$tmpdir/current"
+		notify-send -e -h "string:x-canonical-private-synchronous:${0##*/}" -i "$tmpdir/default.jpg" "Listening @ $(basename "$0")" "$SONG BY $ARTIST"
+		next=$(nl -n'ln' -v0 "$tmpdir/next" | sed "s/^$i /*& /" | menu "SS-music [play-next]: " "$i")
+		[ -z "$next" ] && return 0
+		i=$(printf '%s' "$next" | sed 's/^*//g' | cut -f1 | tr -d ' ')
+		play "$(printf '%s' "$next" | cut -f2-)" "verbose"
+	fi
+	printf '%s' "$i" >"$tmpdir/counter"
+	tail -1 "$tmpdir/next" | grep -q "$(cut -d'>' -f2 <"$tmpdir/current")" && get_music_list
+}
+
+#############
+# VARIABLES #
+#############
+
+API_VERSION="1.16.1"
+AGENT="${0##*/} 1.0.0"
+tmpdir="/tmp/${0##*/}"
+socket="$tmpdir/${0##*/}-mpvsocket"
+config_file="${XDG_STATE_HOME:-$HOME/.local/state}/${0##*/}-config"
+
+########
+# MAIN #
+########
+
+if [ -z "$1" ] || [ "$1" = "help" ]; then
+	help "$2"
+fi
+
+setup
+mkdir -p "$tmpdir"
+
+case "$1" in
+	search_play) $1 "$2" "$3" ;;
+	play_next) $1 "$2" ;;
+	loop) $1 "$2" ;;
+esac

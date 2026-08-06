@@ -133,7 +133,7 @@ loop() {
 	#this function does exactly what it says, it should run in the background
 	#it plays next song after the current song get played completely,it does nothing until u run the search_play function then this code kicks in
 	trap cleanup_shit INT HUP TERM
-	socat - "UNIX-CONNECT:$socket" | while read -r event; do
+	socat -U - "UNIX-CONNECT:$socket" | while read -r event; do
 		#look for eof event
 		if printf "%s" "$event" | grep -q "end-file.*eof"; then
 			i=$(cat "$logdir/counter")
