@@ -139,7 +139,7 @@ loop() {
 			i=$(cat "$logdir/counter")
 			: $((i += 1))
 			pgrep -f "$socket" >/dev/null || continue
-			[ -n "$(cat "$logdir/next")" ]
+			[ -n "$(cat "$logdir/next")" ] || continue
 			play "$(sed -n "$((i += 1))p" "$logdir/next")" "$1"
 			printf '%s' "$i" >"$logdir/counter"
 			# shellcheck source=/tmp/yt-music/current
