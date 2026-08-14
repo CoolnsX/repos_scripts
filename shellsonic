@@ -148,18 +148,18 @@ get_list() {
 }
 
 get_music_list() {
-	artist_id=$(subsonic_api "getSong" "id=$id" | sed -nE 's|.*"artistId":"([^"]*)",.*|\1|p')
+	artist_id=$(subsonic_api "getSong" "id=$1" | sed -nE 's|.*"artistId":"([^"]*)",.*|\1|p')
 
 	similarsongs2=$(get_list "getSimilarSongs2" "id=$artist_id&count=25")
 	#shellcheck disable=SC1091,SC2094
-	[ -n "$similarsongs2" ] && printf '%s' "$similarsongs2" | sed -e "$(cut -f2 "$tmpdir/next" | sed 's|^|/|g;s|$|/d|g')" | sed "s/\\\u0026/and/g;s/'/-/g" >>"$tmpdir/next"
+	[ -n "$similarsongs2" ] && printf '%s\n' "$similarsongs2" | sed -e "$(cut -f2 "$tmpdir/next" | sed 's|^|/|g;s|$|/d|g')" | sed "s/\\\u0026/and/g;s/'/-/g;/^$/d" >>"$tmpdir/next"
 
-	similarsongs=$(get_list "getSimilarSongs" "id=$id&count=25")
+	similarsongs=$(get_list "getSimilarSongs" "id=$1&count=25")
 	#shellcheck disable=SC1091,SC2094
-	[ -n "$similarsongs" ] && printf '%s' "$similarsongs" | sed -e "$(cut -f2 "$tmpdir/next" | sed 's|^|/|g;s|$|/d|g')" | sed "s/\\\u0026/and/g;s/'/-/g" >>"$tmpdir/next"
+	[ -n "$similarsongs" ] && printf '%s\n' "$similarsongs" | sed -e "$(cut -f2 "$tmpdir/next" | sed 's|^|/|g;s|$|/d|g')" | sed "s/\\\u0026/and/g;s/'/-/g;/^$/d" >>"$tmpdir/next"
 
 	#shellcheck disable=SC1091,SC2094
-	[ -z "$similarsongs" ] && [ -z "$similarsongs2" ] && get_list "getRandomSongs" "count=25" | sed -e "$(cut -f2 "$tmpdir/next" | sed 's|^|/|g;s|$|/d|g')" | sed "s/\\\u0026/and/g;s/'/-/g" >>"$tmpdir/next"
+	[ -z "$similarsongs" ] && [ -z "$similarsongs2" ] && get_list "getRandomSongs" "count=25" | sed -e "$(cut -f2 "$tmpdir/next" | sed 's|^|/|g;s|$|/d|g')" | sed "s/\\\u0026/and/g;s/'/-/g;/^$/d" >>"$tmpdir/next"
 }
 
 get_lyrics() {
@@ -182,7 +182,9 @@ loop() {
 			currentsongID=$(sed -nE 's/^ID="([^"]*)"/\1/p' "$tmpdir/current")
 			[ -n "$currentsongID" ] && subsonic_api "scrobble" "submission=true&id=$currentsongID" &
 			pgrep -f "$socket" >/dev/null || continue
-			play "$(sed -n "${i}p" "$tmpdir/next")" "$1"
+			next=$(sed -n "${i}p" "$tmpdir/next")
+			[ -z "$next" ] && cleanup_shit
+			play "$next" "$1"
 			printf '%s' "$i" >"$tmpdir/counter"
 			currentsongID=$(sed -nE 's/^ID="([^"]*)"/\1/p' "$tmpdir/current")
 			[ -n "$currentsongID" ] && tail -1 "$tmpdir/next" | grep -q "$currentsongID" && get_music_list "$currentsongID"
@@ -195,11 +197,17 @@ search_play() {
 	[ -z "$1" ] && query=$(: | menu "SS-music [Search]:") || query="$1"
 	[ -z "$query" ] && notify-send -e "Err.. Search query empty" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && return 1
 	case "$query" in
-		"playlist")
+		playlist)
 			playlist=$(subsonic_api "getPlaylists" | sed 's/readonly/\n/g' | sed -nE 's|.*"id":"([^"]*)","name":"([^"]*)","songCount":([0-9]*),.*|\2 (\3)\t\1|p' | menu "SS-music [Playlist]:" "" "--ifne")
 			[ -z "$playlist" ] && notify-send -e "Err.. No playlist selected" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && return 1
-			exit 0
-			# coming soon
+			playlist_id=$(printf '%s' "$playlist" | cut -f2)
+			playlist_name=$(printf '%s' "$playlist" | cut -f1)
+			playlist_data=$(get_list "getPlaylist" "id=$playlist_id&size=-1" | shuf)
+			[ -z "$playlist_data" ] && notify-send -e "Err.. Playlist $playlist_name empty" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && return 1
+			song=$(printf '%s' "$playlist_data" | head -1)
+			[ -z "$song" ] && return 1
+			printf "%s\n" "$playlist_data" | sed "s/\\\u0026/and/g;s/'/-/g;/^$/d" >"$tmpdir/next"
+			play "$song" "verbose"
 			;;
 		*)
 			song=$(get_list "search3" "query=$(printf '%s' "$query" | tr ' ' '+')" | menu "SS-music [Play]:" "" "--ifne")
@@ -219,11 +227,7 @@ play() {
 
 	prepare_token
 	stream_url="$SS_URL/rest/stream?id=$id&u=$SS_USER&t=$TOKEN&s=$SALT&v=$API_VERSION&c=${0##*/}"
-
-	if [ -n "$2" ]; then
-		success "Playing $title on mpv\n"
-	fi
-
+	[ -n "$2" ] && success "Playing $title on mpv\n"
 	curl -s "$SS_URL/rest/getCoverArt?id=$coverId&u=$SS_USER&t=$TOKEN&s=$SALT&v=$API_VERSION&c=${0##*/}&size=300" -o "$tmpdir/default.jpg" && notify-send -e -h "string:x-canonical-private-synchronous:${0##*/}" -i "$tmpdir/default.jpg" "Now Playing" "$title" -t 5000
 	pgrep -f "$socket" >/dev/null || setsid -f mpv --really-quiet --input-ipc-server="$socket" --idle --quiet --no-audio-display >/dev/null
 	while [ ! -S "$socket" ]; do sleep 1; done
@@ -253,7 +257,7 @@ play_next() {
 		#shellcheck disable=SC1091
 		[ -f "$tmpdir/current" ] && . "$tmpdir/current"
 		notify-send -e -h "string:x-canonical-private-synchronous:${0##*/}" -i "$tmpdir/default.jpg" "Listening @ $(basename "$0")" "$SONG BY $ARTIST"
-		next=$(nl -n'ln' "$tmpdir/next" | sed "s/^$i /*& /" | menu "SS-music [play-next]: " "$i")
+		next=$(nl -n'ln' "$tmpdir/next" | sed "s/^$i /*& /" | menu "SS-music [play-next]: " "$((i - 1))")
 		[ -z "$next" ] && return 0
 		i=$(printf '%s' "$next" | sed 's/^*//g' | cut -f1 | tr -d ' ')
 		play "$(printf '%s' "$next" | cut -f2-)" "verbose"
@@ -287,5 +291,6 @@ mkdir -p "$tmpdir"
 case "$1" in
 	search_play) $1 "$2" "$3" ;;
 	play_next) $1 "$2" ;;
+	play) $1 "$2" ;;
 	loop) $1 "$2" ;;
 esac
