@@ -15,7 +15,7 @@ help() {
 			name="loop"
 			args='"print"'
 			description="this function runs in a loop to play the next music if the current music is successfully finished
-			this function should be put as background process or put it in startup
+			this function should be put as background process
 			passing print argument will show the progress to stdout"
 			;;
 		play*)
@@ -78,6 +78,7 @@ menu() {
 }
 
 cleanup_shit() {
+	pgrep -f "$socket" >/dev/null && pkill -f "$socket"
 	rm -rdf "$tmpdir"
 	exit 0
 }
@@ -86,11 +87,14 @@ cleanup_shit() {
 # CONFIG #
 ##########
 
+# create/update the variable value
 save_config() {
 	grep -q "^$1=" "$config_file" && sed -i "s|$1=.*|$1=$2|g" "$config_file" >/dev/null 2>&1 || printf "%s=%s\n" "$1" "$2" >>"$config_file"
 	[ -z "$3" ] && success "$1 Saved in config, to override config values pass it as environment variable\n"
 }
 
+# checks the variable existance, if it's filled
+# if either or both are false, it ask the user to submit them.
 ensure_config() {
 	grep -qE "$1=(.+)" "$config_file" && return 0
 	ask "$2"
@@ -99,6 +103,8 @@ ensure_config() {
 	unset query
 }
 
+# checks the config, does the auth and check if config is correct
+# if not, then present the user to re-configure it.
 setup() {
 	info "Checking Config.."
 	[ -f "$config_file" ] || : >"$config_file"
@@ -133,33 +139,37 @@ setup() {
 # NETWORK #
 ###########
 
+# generates a random token with salt to maximize security.
 prepare_token() {
 	SALT="$(tr -dc '[:alnum:]' </dev/urandom | head -c16)"
 	TOKEN="$(printf '%s%s' "$SS_PASS" "$SALT" | md5sum | cut -d' ' -f1)"
 }
 
+# all the api calls are done by this function
 subsonic_api() {
 	prepare_token
-	curl -s -A "$AGENT" "$SS_URL/rest/${1}?u=$SS_USER&t=$TOKEN&s=$SALT&v=$API_VERSION&c=${0##*/}&f=json&${2}" -X "${3:-GET}"
+	curl -s -A "$AGENT" "$SS_URL/rest/${1}?u=$SS_USER&t=$TOKEN&s=$SALT&v=$API_VERSION&c=${0##*/}&f=json&${2}" -G
 }
 
+# fetches the track list and present it in usable format for code
 get_list() {
-	subsonic_api "$1" "$2" | sed 's/movements/\n/g' | sed -nE 's|.*\{"id":"([^"]*)",.*"title":"([^"]*)","album":".*","artist":"([^"]*)".*"coverArt":"([^"]*)",.*|\2 BY \3\t\1\t\4|p'
+	subsonic_api "$1" "$2" | sed 's/movements/\n/g' | sed -nE 's|.*\{"id":"([^"]*)",.*"title":"([^"]*)","album":".*","artist":"([^"]*)".*"coverArt":"([^"]*)",.*|\2 BY \3\t\1\t\4|p' | sed "s/\\\u0026/and/g;s/'/-/g;/^$/d"
 }
 
+# get next songs basec on current song, to make a playlist to continue playing.
 get_music_list() {
 	artist_id=$(subsonic_api "getSong" "id=$1" | sed -nE 's|.*"artistId":"([^"]*)",.*|\1|p')
 
 	similarsongs2=$(get_list "getSimilarSongs2" "id=$artist_id&count=25")
 	#shellcheck disable=SC1091,SC2094
-	[ -n "$similarsongs2" ] && printf '%s\n' "$similarsongs2" | sed -e "$(cut -f2 "$tmpdir/next" | sed 's|^|/|g;s|$|/d|g')" | sed "s/\\\u0026/and/g;s/'/-/g;/^$/d" >>"$tmpdir/next"
+	[ -n "$similarsongs2" ] && printf '%s\n' "$similarsongs2" | sed -e "$(cut -f2 "$tmpdir/next" | sed 's|^|/|g;s|$|/d|g')" >>"$tmpdir/next"
 
 	similarsongs=$(get_list "getSimilarSongs" "id=$1&count=25")
 	#shellcheck disable=SC1091,SC2094
-	[ -n "$similarsongs" ] && printf '%s\n' "$similarsongs" | sed -e "$(cut -f2 "$tmpdir/next" | sed 's|^|/|g;s|$|/d|g')" | sed "s/\\\u0026/and/g;s/'/-/g;/^$/d" >>"$tmpdir/next"
+	[ -n "$similarsongs" ] && printf '%s\n' "$similarsongs" | sed -e "$(cut -f2 "$tmpdir/next" | sed 's|^|/|g;s|$|/d|g')" >>"$tmpdir/next"
 
 	#shellcheck disable=SC1091,SC2094
-	[ -z "$similarsongs" ] && [ -z "$similarsongs2" ] && get_list "getRandomSongs" "count=25" | sed -e "$(cut -f2 "$tmpdir/next" | sed 's|^|/|g;s|$|/d|g')" | sed "s/\\\u0026/and/g;s/'/-/g;/^$/d" >>"$tmpdir/next"
+	[ -z "$similarsongs" ] && [ -z "$similarsongs2" ] && get_list "getRandomSongs" "count=25" | sed -e "$(cut -f2 "$tmpdir/next" | sed 's|^|/|g;s|$|/d|g')" >>"$tmpdir/next"
 }
 
 get_lyrics() {
@@ -170,29 +180,32 @@ get_lyrics() {
 # FUNCTIONS #
 #############
 
+#this function does exactly what it says, it should run in the background
+#it plays next song after the current song get played completely
+#it does nothing until u run the search_play function for first track and then this code kicks in
 loop() {
-	#this function does exactly what it says, it should run in the background
-	#it plays next song after the current song get played completely,it does nothing until u run the search_play function then this code kicks in
 	trap cleanup_shit INT HUP TERM
 	socat -U - "UNIX-CONNECT:$socket" | while read -r event; do
 		#look for eof event
 		if printf "%s" "$event" | grep -q "end-file.*eof"; then
 			i=$(cat "$tmpdir/counter")
 			: $((i += 1))
-			currentsongID=$(sed -nE 's/^ID="([^"]*)"/\1/p' "$tmpdir/current")
-			[ -n "$currentsongID" ] && subsonic_api "scrobble" "submission=true&id=$currentsongID" &
+			subsonic_api "scrobble" "submission=true&id=$(sed -nE 's/^ID="([^"]*)"/\1/p' "$tmpdir/current")"
 			pgrep -f "$socket" >/dev/null || continue
 			next=$(sed -n "${i}p" "$tmpdir/next")
-			[ -z "$next" ] && cleanup_shit
+			[ -z "$next" ] && break
 			play "$next" "$1"
 			printf '%s' "$i" >"$tmpdir/counter"
-			currentsongID=$(sed -nE 's/^ID="([^"]*)"/\1/p' "$tmpdir/current")
+			[ -f "$tmpdir/playlist-mode" ] && continue
+			currentsongID=$(printf '%s' "$next" | cut -f2)
 			[ -n "$currentsongID" ] && tail -1 "$tmpdir/next" | grep -q "$currentsongID" && get_music_list "$currentsongID"
 		fi
 	done
 	cleanup_shit
 }
 
+#run this if u want to listen to songs and start playlist
+#call this by script-name search_play [ search_query ]
 search_play() {
 	[ -z "$1" ] && query=$(: | menu "SS-music [Search]:") || query="$1"
 	[ -z "$query" ] && notify-send -e "Err.. Search query empty" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && return 1
@@ -202,28 +215,33 @@ search_play() {
 			[ -z "$playlist" ] && notify-send -e "Err.. No playlist selected" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && return 1
 			playlist_id=$(printf '%s' "$playlist" | cut -f2)
 			playlist_name=$(printf '%s' "$playlist" | cut -f1)
-			playlist_data=$(get_list "getPlaylist" "id=$playlist_id&size=-1" | shuf)
+			playlist_data=$(get_list "getPlaylist" "id=$playlist_id&size=-1" | shuf | tee "$tmpdir/next")
 			[ -z "$playlist_data" ] && notify-send -e "Err.. Playlist $playlist_name empty" -u critical -h "string:x-canonical-private-synchronous:${0##*/}" && return 1
 			song=$(printf '%s' "$playlist_data" | head -1)
 			[ -z "$song" ] && return 1
-			printf "%s\n" "$playlist_data" | sed "s/\\\u0026/and/g;s/'/-/g;/^$/d" >"$tmpdir/next"
 			play "$song" "verbose"
+			touch "$tmpdir/playlist-mode"
 			;;
 		*)
 			song=$(get_list "search3" "query=$(printf '%s' "$query" | tr ' ' '+')" | menu "SS-music [Play]:" "" "--ifne")
 			[ -z "$song" ] && return 1
 			printf "%s\n" "$song" >"$tmpdir/next"
 			play "$song" "verbose" "1"
+			rm -f "$tmpdir/playlist-mode"
 			;;
 	esac
 	printf "1" >"$tmpdir/counter"
+	pgrep -f "${0##*/} loop" >/dev/null || setsid -f "$0" loop
 }
 
+#this function does all the heavy lifting
+#it uses the track id to generate stream url and pass to mpv
+#then generates playlist, fetches lyrics, scrobble now-playing the current track
 play() {
 	title=$(printf '%s' "$1" | cut -f1)
 	id=$(printf '%s' "$1" | cut -f2)
 	coverId=$(printf '%s' "$1" | cut -f3)
-	[ -z "$id" ] && err "[ subsonic ] Invalid Id" && exit 1
+	[ -z "$id" ] && err "[ opensubsonic ] Invalid Id" && exit 1
 
 	prepare_token
 	stream_url="$SS_URL/rest/stream?id=$id&u=$SS_USER&t=$TOKEN&s=$SALT&v=$API_VERSION&c=${0##*/}"
@@ -236,22 +254,21 @@ play() {
 	artist="${title#* BY }"
 	printf 'SONG="%s"\nARTIST="%s"\nID="%s"' "$song_title" "$artist" "$id" >"$tmpdir/current"
 
+	# run complementary functions to make listening more fun...
 	get_lyrics "$id" &
 	[ -n "$3" ] && get_music_list "$id" &
 	subsonic_api "scrobble" "id=$id&submission=false" &
-
-	pgrep -f "${0##*/} loop" >/dev/null || setsid -f "$0" loop
 }
 
+#call this by script-name "play_next" for playing next song immediately
+#or add "menu" after "play_next" to show menu for selecting and playing next song immediately
+#like this script-name "play_next" "menu"
 play_next() {
-	#call this by script-name "play_next" for playing next song immediately
-	#or add "menu" after "play_next" to show menu for selecting and playing next song immediately
-	#like this script-name "play_next" "menu"
 	pgrep -f "$socket" || return 0
 	i=$(cat "$tmpdir/counter")
 	if [ -z "$1" ]; then
 		: $((i += 1))
-		play "$(sed -n "${i}p" "$tmpdir/next")" "$1"
+		play "$(sed -n "${i}p" "$tmpdir/next")"
 	else
 		#shellcheck source=/dev/null
 		#shellcheck disable=SC1091
@@ -289,8 +306,12 @@ setup
 mkdir -p "$tmpdir"
 
 case "$1" in
-	search_play) $1 "$2" "$3" ;;
-	play_next) $1 "$2" ;;
-	play) $1 "$2" ;;
-	loop) $1 "$2" ;;
+	search_play) search_play "$2" "$3" ;;
+	play_next) play_next "$2" ;;
+	play) play "$2" ;;
+	loop) loop "$2" ;;
+	*)
+		err "Function does not exist!"
+		help
+		;;
 esac
