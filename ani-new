@@ -75,7 +75,7 @@ embed_url=$(get_data "$domain/api/frontend/episode/$ep_id/languages" "$refer" | 
 info_$os "Extracting Episode links.."
 ep_m3u8_url=$(get_data "$embed_url" "$refer" | sed -nE "s|.*file: '([^']*)', type: 'hls'.*|\1|p")
 
-ep_url=$(get_data "$ep_m3u8_url" "$refer" | tee data | sed '/EXT-X-I-FRAME/,$d' | sed "s|^#.*x||g; s|,.*|p|g; /^#/d; \$!N; s|\n| >|;/^$/d" | menu_$os "Select Resolution: " | cut -d'>' -f2)
+ep_url=$(get_data "$ep_m3u8_url" "$refer" | sed '/EXT-X-I-FRAME/,$d' | sed "s|^#.*x||g; s|,.*|p|g; /^#/d; \$!N; s|\n| >|;/^$/d" | menu_$os "Select Resolution: " | cut -d'>' -f2)
 
 [ -z "$ep_url" ] && error_$os "No Resolution selected" && exit 0
 
