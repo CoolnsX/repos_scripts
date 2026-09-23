@@ -166,16 +166,16 @@ print_urls() {
 			get_curl "Shows/$1/Episodes?seasonId=$season_id&userId=$JF_USER_ID&enableUserData=false&enableImages=false" | tee ~/lol | sed 's|\[{|\n|g;s|},{|\n|g' | sed -nE 's|^"Name":"([^"]*)",.*,"Id":"([^"]*)",.*"IndexNumber":([0-9]*),.*|\2\tEP-\3 \1\n|p' | sed '/^$/d' | while read -r episode; do
 				ep_id="$(printf '%s' "$episode" | cut -f1)"
 				ep_title="$(printf '%s' "$episode" | cut -f2)"
-				message="$only_urls/Items/$ep_id/Download?ApiKey=$JF_TOKEN"
+				message="$JF_URL/Items/$ep_id/Download?ApiKey=$JF_TOKEN"
 				sub="$JF_URL/Videos/$ep_id/$ep_id/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN"
-				! curl -s "$sub" | grep -q "Error processing request" && message="$(printf '%s\nSub URL: %s' "$message" "$only_urls/Videos/$ep_id/$ep_id/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN")"
+				! curl -s "$sub" | grep -q "Error processing request" && message="$(printf '%s\nSub URL: %s' "$message" "$JF_URL/Videos/$ep_id/$ep_id/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN")"
 				printf '\n %s | %s\n%s\n' "$ep_title" "$(get_file_size "$ep_id")" "$message"
 			done
 			;;
 		Movie)
-			message="$only_urls/Items/$1/Download?ApiKey=$JF_TOKEN"
+			message="$JF_URL/Items/$1/Download?ApiKey=$JF_TOKEN"
 			sub="$JF_URL/Videos/$1/$1/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN"
-			! curl -s "$sub" | grep -q "Error processing request" && message="$(printf '%s\nSub URL: %s' "$message" "$only_urls/Videos/$1/$1/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN")"
+			! curl -s "$sub" | grep -q "Error processing request" && message="$(printf '%s\nSub URL: %s' "$message" "$JF_URL/Videos/$1/$1/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN")"
 			printf "%s" "$message"
 			;;
 	esac
