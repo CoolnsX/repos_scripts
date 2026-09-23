@@ -100,15 +100,6 @@ mpv_jellyfin() {
 	url="$JF_URL/Items/$1/Download?ApiKey=$JF_TOKEN"
 	sub="$JF_URL/Videos/$1/$1/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN"
 	! curl -s "$sub" | grep -q "Error processing request" && sub_arg="--sub-file=$sub"
-	if uname -o | grep -q 'ndroid'; then
-		text="Title: $title\nURL: $url"
-		[ -n "$sub_arg" ] && text="$text\nSub URL: $sub"
-		#shellcheck disable=SC2059
-		printf "\n$text"
-		#shellcheck disable=SC2059
-		printf "$text" | termux-clipboard-set
-		return 0
-	fi
 	#shellcheck disable=SC2086
 	nohup mpv --input-ipc-server="$socket" --start="$((playbackPositionTicks / 10000000))" --force-media-title="$title" "$url" $sub_arg >/dev/null 2>&1 &
 	skipPositions=$(get_curl "Episode/$1/IntroSkipperSegments" | sed 's|}|\n|g' | sed -nE 's|.*"Introduction".*"Start":([^\.,]*).*,"End":([^\.,]*).*|op_start=\1\nop_end=\2|p;s|.*"Credits".*"Start":([^\.,]*).*"End":([^\.,]*).*|ed_start=\1\ned_end=\2|p')
