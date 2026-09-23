@@ -1,7 +1,6 @@
 #!/bin/sh
 
 domain="https://anidb.app"
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/15$(head /dev/urandom | tr -dc '0-2' | cut -c1).0.0.0 Safari/537.36"
 logdir="${TMPDIR:-/tmp}/${0##*/}"
 
 get_data() {
@@ -44,6 +43,7 @@ esac
 
 . "$(dirname "$0")"/.functions
 
+agent="$(get_agent)"
 trap "exit 0" INT HUP
 info_$os "Parsing $domain.. Please wait..."
 

@@ -80,11 +80,13 @@ case $(uname -o) in
 		download_dir="/sdcard"
 		[ -z "$link" ] && link=$(termux-clipboard-get)
 		os="droid"
+		yt_dlp_extra_args=""
 		;;
 	*)
 		download_dir="$HOME"
 		[ -z "$link" ] && link=$(wl-paste)
 		os="linux"
+		yt_dlp_extra_args="--cookies-from-browser firefox"
 		;;
 esac
 
@@ -94,7 +96,7 @@ info "Downloading Video.."
 
 truncate -s0 "$yt_dlp_logs" # truncate file if exists, creates if doesn't exists
 
-yt-dlp -S "filesize:10M" -t mp4 "$link" -o "$download_dir/%(title)s.%(ext)s" | tee "$yt_dlp_logs"
+yt-dlp $yt_dlp_extra_args -S "filesize:10M" -t mp4 "$link" -o "$download_dir/%(title)s.%(ext)s" | tee "$yt_dlp_logs"
 
 filepath=$(sed -nE "s|.*($download_dir.*\.mp4).*|\1|p" "$yt_dlp_logs" | head -1)
 

@@ -61,6 +61,25 @@ cleanup_shit() {
 	exit 0
 }
 
+save_latest_chrome_version() {
+	version=$(curl -fsSG 'https://versionhistory.googleapis.com/v1/chrome/platforms/linux/channels/stable/versions/all/releases' --data-urlencode 'page_size=1' --data-urlencode "$1" | sed -nE 's|.*"version": "([^"]*)",.*|\1|p')
+	[ -n "$version" ] && [ "$version" != "$1" ] && printf "%s" "$version" > "$version_file"
+}
+
+get_agent() {
+	version_file="${XDG_CACHE_HOME:-$HOME/.cache}/chrome-version"
+	mkdir -p "${version_file%/*}"
+
+	version=$(\cat "$version_file" 2>/dev/null)
+	save_latest_chrome_version "filter=version>$version" &
+	pid=$!
+
+	[ -z "$version" ] && wait "$pid"
+	version=$(\cat "$version_file")
+	printf 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s.0.0.0 Safari/537.36' "${version%%.*}"
+	unset version version_file
+}
+
 get_cookies() {
 	# the user has firefox installed
 	if [ ! -f "$HOME/.config/google-chrome/Default/Cookies" ]; then
@@ -277,19 +296,18 @@ base_url="https://music.youtube.com"
 cookie="$logdir/cookies"
 
 # user agents, used by script
-random_no=$(head /dev/urandom | tr -dc '4-8' | cut -c1)
 # web
-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/14$random_no.0.0.0 Safari/537.36"
+agent="$(get_agent)"
 # random number for android
 random_no=$(head /dev/urandom | tr -dc '2-6' | cut -c1)
 # youtube
-yt_ver="21.22.165"
+yt_ver="21.37.42"
 yt_agent="com.google.android.youtube/$yt_ver (Linux; U; Android 1$random_no) gzip"
 # youtube music
-yt_music_ver="9.21.51"
+yt_music_ver="9.36.51"
 yt_music_agent="com.google.android.apps.youtube.music/$yt_music_ver (Linux; U; Android 1$random_no) gzip"
 # web context
-web_context='{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20260531.05.00"}}'
+web_context='{"client":{"clientName":"WEB_REMIX","clientVersion":"1.20260915.14.00"}}'
 
 #call this script by script-name "function_name" "query"
 [ -z "$1" ] && help "$@"

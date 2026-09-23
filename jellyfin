@@ -8,7 +8,7 @@ VERSION="1.0.0"
 
 info() {
 	#shellcheck disable=SC2059
-	printf "\033[2K\r\033[1;${2:-36}m${1}\033[0m"
+	printf "\033[2K\r\033[1;${2:-36}m${1}\033[0m" >&2
 }
 
 success() {
@@ -65,7 +65,7 @@ check_config_auth() {
 	done
 	info "Checking Auth..."
 	. "$config_file"
-	resp=$(curl -s "$JF_URL/Users/Me" -H 'Authorization: MediaBrowser Token="'"$JF_TOKEN"'"' | sed -nE 's|.*"Id":"([^"]*)".*|JF_USER_ID=\1|p')
+	resp=$(get_curl "Users/Me" | sed -nE 's|.*"Id":"([^"]*)".*|JF_USER_ID=\1|p')
 	[ -z "$resp" ] && save_config "JF_TOKEN" "" "no_output" && return 1
 	return 0
 }
@@ -82,7 +82,7 @@ configure() {
 		auth_quick_connect
 	fi
 	if ! [ -f "$config_file" ] || ! grep -qE "JF_USER_ID=(.+)" "$config_file"; then
-		eval "$(curl -s "$JF_URL/Users/Me" -H 'Authorization: MediaBrowser Token="'"$JF_TOKEN"'"' | sed -nE 's|.*"Id":"([^"]*)".*|JF_USER_ID=\1|p')"
+		eval "$(get_curl "Users/Me" | sed -nE 's|.*"Id":"([^"]*)".*|JF_USER_ID=\1|p')"
 		save_config "JF_USER_ID" "$JF_USER_ID"
 	fi
 	unset JF_USER_ID JF_TOKEN CODE SECRET JF_URL
@@ -93,11 +93,12 @@ mpv_jellyfin() {
 	[ -z "$1" ] && return 0
 	[ -z "$2" ] && return 0
 
+	#shellcheck disable=SC2059
 	title=$(printf "$2")
 
 	success "Playing $title on mpv"
-	url="$JF_URL/Items/$1/Download?api_key=$JF_TOKEN"
-	sub="$JF_URL/Videos/$1/$1/Subtitles/0/0/Stream.ass?api_key=$JF_TOKEN"
+	url="$JF_URL/Items/$1/Download?ApiKey=$JF_TOKEN"
+	sub="$JF_URL/Videos/$1/$1/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN"
 	! curl -s "$sub" | grep -q "Error processing request" && sub_arg="--sub-file=$sub"
 	if uname -o | grep -q 'ndroid'; then
 		text="Title: $title\nURL: $url"
@@ -110,7 +111,7 @@ mpv_jellyfin() {
 	fi
 	#shellcheck disable=SC2086
 	nohup mpv --input-ipc-server="$socket" --start="$((playbackPositionTicks / 10000000))" --force-media-title="$title" "$url" $sub_arg >/dev/null 2>&1 &
-	skipPositions=$(curl -s "$JF_URL/Episode/$1/IntroSkipperSegments" -H 'Authorization: MediaBrowser Token="'"$JF_TOKEN"'"' -H "Accept: application/json" | sed 's|}|\n|g' | sed -nE 's|.*"Introduction".*"Start":([^\.,]*).*,"End":([^\.,]*).*|op_start=\1\nop_end=\2|p;s|.*"Credits".*"Start":([^\.,]*).*"End":([^\.,]*).*|ed_start=\1\ned_end=\2|p')
+	skipPositions=$(get_curl "Episode/$1/IntroSkipperSegments" | sed 's|}|\n|g' | sed -nE 's|.*"Introduction".*"Start":([^\.,]*).*,"End":([^\.,]*).*|op_start=\1\nop_end=\2|p;s|.*"Credits".*"Start":([^\.,]*).*"End":([^\.,]*).*|ed_start=\1\ned_end=\2|p')
 	track_progress "$1"
 }
 
@@ -151,8 +152,43 @@ EOF
 	setsid -f "$progress_track_file"
 }
 
+get_curl() {
+	curl -s "${JF_URL}/$1" -H "Authorization: MediaBrowser Token=$JF_TOKEN" -H "Accept: application/json"
+}
+
 get_data() {
-	curl -s "${JF_URL}/$1" -H 'Authorization: MediaBrowser Token="'"$JF_TOKEN"'"' -H "Accept: application/json" | sed 's|\[{|\n|g;s|},{|\n|g' | sed -nE 's|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"PlaybackPositionTicks":([^,]*),.*Primary":\{?"([^"]*)".*|\2\t\4\t\1\t\3|p' | sed "s/u0027/'/g" | tr -d '\\' | menu "$2"
+	get_curl "$1" | sed 's|\[{|\n|g;s|},{|\n|g' | sed -nE 's|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"PlaybackPositionTicks":([^,]*),.*Primary":\{?"([^"]*)".*|\2\t\4\t\1\t\3|p' | sed "s/u0027/'/g" | tr -d '\\' | menu "$2"
+}
+
+cal_size() {
+	printf '%d MB' "$(($1 / 1048576))"
+}
+
+get_file_size() {
+	cal_size "$(get_curl "JellyfinEnhanced/file-size/$JF_USER_ID/$1" | sed -nE 's|.*"size":([0-9]*).*|\1|p')"
+}
+
+print_urls() {
+	printf '%s | %s\n' "$2" "$(get_file_size "$1")"
+	case "$collection_title" in
+		Show)
+			get_curl "Shows/$1/Episodes?seasonId=$season_id&userId=$JF_USER_ID&enableUserData=false&enableImages=false" | tee ~/lol | sed 's|\[{|\n|g;s|},{|\n|g' | sed -nE 's|^"Name":"([^"]*)",.*,"Id":"([^"]*)",.*"IndexNumber":([0-9]*),.*|\2\tEP-\3 \1\n|p' | sed '/^$/d' | while read -r episode; do
+				ep_id="$(printf '%s' "$episode" | cut -f1)"
+				ep_title="$(printf '%s' "$episode" | cut -f2)"
+				message="$only_urls/Items/$ep_id/Download?ApiKey=$JF_TOKEN"
+				sub="$JF_URL/Videos/$ep_id/$ep_id/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN"
+				! curl -s "$sub" | grep -q "Error processing request" && message="$(printf '%s\nSub URL: %s' "$message" "$only_urls/Videos/$ep_id/$ep_id/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN")"
+				printf '\n %s | %s\n%s\n' "$ep_title" "$(get_file_size "$ep_id")" "$message"
+			done
+			;;
+		Movie)
+			message="$only_urls/Items/$1/Download?ApiKey=$JF_TOKEN"
+			sub="$JF_URL/Videos/$1/$1/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN"
+			! curl -s "$sub" | grep -q "Error processing request" && message="$(printf '%s\nSub URL: %s' "$message" "$only_urls/Videos/$1/$1/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN")"
+			printf "%s" "$message"
+			;;
+	esac
+	exit 0
 }
 
 shows() {
@@ -160,6 +196,7 @@ shows() {
 	[ -z "$season" ] && exit 1
 	season_title=$(printf "%s" "$season" | cut -f3)
 	season_id=$(printf "%s" "$season" | cut -f1)
+	[ -n "$only_urls" ] && print_urls "$season_id" "$title - $season_title"
 	episode=$(get_data "Shows/$id/Episodes?seasonId=$season_id&userId=$JF_USER_ID" "Select Episode >")
 	[ -z "$episode" ] && exit 1
 	episode_title=$(printf "%s" "$episode" | cut -f3)
@@ -187,7 +224,7 @@ collection() {
 
 	case "$collection_title" in
 		Show) shows ;;
-		Movie) ;; # the id and title already belongs to Movie.
+		Movie) [ -n "$only_urls" ] && print_urls "$id" "$title" ;;
 	esac
 }
 
@@ -219,8 +256,9 @@ info ""
 
 socket="/tmp/${0##*/}-mpvsocket"
 progress_track_file="/tmp/${0##*/}-progress"
+only_urls="$1"
 
-what_to_watch=$(printf "My Media\nResume\nNext Up" | fzf --prompt="Select >" --layout=reverse --border)
+[ -n "$only_urls" ] && what_to_watch="My Media" || what_to_watch=$(printf "My Media\nResume\nNext Up" | fzf --prompt="Select >" --layout=reverse --border)
 
 case "$what_to_watch" in
 	'My Media') collection ;;

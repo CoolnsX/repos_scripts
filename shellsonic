@@ -173,7 +173,7 @@ get_music_list() {
 }
 
 get_lyrics() {
-	subsonic_api "getLyricsBySongId" "id=$1" | sed 's|[\{\}]|\n|g' | sed -nE 's|.*"start":([0-9]*),"value":"(.*)"$|\1\t\2|p' | sed 's/\(\(\w\w*\W*\)\{10\}\)/\1\\n/g' >"$tmpdir/lyrics"
+	subsonic_api "getLyricsBySongId" "id=$1" | sed 's|[\{\}]|\n|g' | sed -nE 's|.*"start":([0-9]*),"value":"(.*)"$|\1\t\2|p' | sed 's/\(\(\w\+\W\+\)\{10\}\)/\1\\n/g' >"$tmpdir/lyrics"
 }
 
 #############
