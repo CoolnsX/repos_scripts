@@ -147,11 +147,14 @@ get_curl() {
 }
 
 filter_data() {
-	sed 's|\[{|\n|g;s|},{|\n|g' | sed -nE "$1" | sed -e "s/u0027/'/g" -e 's/u2013/-/g' -e 's/\\//g' -e '/^$/d'
+	sed 's|\[{|\n|g;s|},{|\n|g' | sed -nE "$1" | sed -e "s/u0027/'/g" -e 's/u2013/-/g' -e 's/u2606/-/g' -e 's/\\//g' -e '/^$/d'
 }
 
 get_data() {
-	get_curl "$1" | filter_data 's|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"PlaybackPositionTicks":([^,]*),.*Primary":\{?"([^"]*)".*|\2\t\4\t\1\t\3|p' | menu "$2"
+	filter='s|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"PlaybackPositionTicks":([^,]*),.*Primary":\{?"([^"]*)".*|\2\t\4\t\1\t\3|p'
+	[ -z "$3" ] || filter="$3"
+	get_curl "$1" | filter_data "$filter" | menu "$2"
+	unset filter
 }
 
 cal_size() {
@@ -191,11 +194,11 @@ shows() {
 	season_title=$(printf "%s" "$season" | cut -f3)
 	season_id=$(printf "%s" "$season" | cut -f1)
 	[ -n "$only_urls" ] && print_urls "$season_id" "$title - $season_title"
-	episode=$(get_data "Shows/$id/Episodes?seasonId=$season_id&userId=$JF_USER_ID" "Select Episode >")
+	episode=$(get_data "Shows/$id/Episodes?seasonId=$season_id&userId=$JF_USER_ID" "Select Episode >" 's|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"IndexNumber":([0-9]*),"ParentIndexNumber":([0-9]*),.*"PlaybackPositionTicks":([^,]*),.*Primary":\{?"([^"]*)".*|\2\t\6\tS\4:E\3 - \1\t\5|p')
 	[ -z "$episode" ] && exit 1
 	episode_title=$(printf "%s" "$episode" | cut -f3)
 	episode_id=$(printf "%s" "$episode" | cut -f1)
-	title="$title - $season_title - $episode_title"
+	title="$title - $episode_title"
 	id=$episode_id
 	playbackPositionTicks=$(printf '%s' "$episode" | cut -f4)
 }
@@ -208,9 +211,10 @@ collection() {
 	collection_title=$(printf '%s' "$collection" | cut -f3 | sed 's|.$||g')
 
 	recursive="false"
-	[ "$collection_title" = "Movie" ] && recursive="true"
+	filter='s|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"UnplayedItemCount":[1-9][0-9]*,"PlaybackPositionTicks":([^,]*),.*Primary":\{?"([^"]*)".*|\2\t\4\t\1\t\3|p'
+	[ "$collection_title" = "Movie" ] && recursive="true" && filter='s|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"PlaybackPositionTicks":([^,]*),.*Primary":\{?"([^"]*)".*|\2\t\4\t\1\t\3|p'
 
-	data=$(get_curl "Items?IncludeItemTypes=$collection_title&Recursive=$recursive&ParentId=$collection_id" | filter_data 's|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"UnplayedItemCount":[1-9][0-9]*,"PlaybackPositionTicks":([^,]*),.*Primary":\{?"([^"]*)".*|\2\t\4\t\1\t\3|p' | menu "Select $collection_title >")
+	data=$(get_data "Items?IncludeItemTypes=$collection_title&Recursive=$recursive&ParentId=$collection_id" "Select $collection_title >" "$filter")
 	[ -z "$data" ] && exit 1
 	id=$(printf "%s" "$data" | cut -f1)
 	title=$(printf "%s" "$data" | cut -f3)
@@ -223,7 +227,7 @@ collection() {
 }
 
 resume() {
-	resume=$(get_data "UserItems/Resume" "Resume >")
+	resume=$(get_data "UserItems/Resume?mediaTypes=Video" "Resume >" 's|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"IndexNumber":([0-9]*),"ParentIndexNumber":([0-9]*),.*"PlaybackPositionTicks":([^,]*),.*"SeriesName":"([^"]*)",.*Primary":\{?"([^"]*)".*|\2\t\7\t\6 - S\4:E\3 - \1\t\5|p;s|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"PlaybackPositionTicks":([^,]*),.*Primary":\{?"([^"]*)".*|\2\t\4\t\1\t\3|p')
 	[ -z "$resume" ] && exit 1
 	id=$(printf "%s" "$resume" | cut -f1)
 	title=$(printf "%s" "$resume" | cut -f3)
@@ -231,7 +235,7 @@ resume() {
 }
 
 nextUp() {
-	nextup=$(get_data "Shows/NextUp?enableTotalRecordCount=true&disableFirstEpisode=false&enableResumable=true" "Next UP >")
+	nextup=$(get_data "Shows/NextUp?enableTotalRecordCount=true&disableFirstEpisode=false&enableResumable=true" "Next UP >" 's|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"IndexNumber":([0-9]*),"ParentIndexNumber":([0-9]*),.*"PlaybackPositionTicks":([^,]*),.*"SeriesName":"([^"]*)",.*Primary":\{?"([^"]*)".*|\2\t\7\t\6 - S\4:E\3 - \1\t\5|p')
 	[ -z "$nextup" ] && exit 1
 	id=$(printf "%s" "$nextup" | cut -f1)
 	title=$(printf "%s" "$nextup" | cut -f3)
