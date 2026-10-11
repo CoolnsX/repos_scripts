@@ -7,6 +7,7 @@ config_file="$HOME/.jellyfin-cli-config"
 VERSION="2.0.0"
 GLOBAL_FILTER='s|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"PlaybackPositionTicks":([^,]*),.*|\2\t\1\t\3|p'
 EPISODE_FILTER='s|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"IndexNumber":([0-9]*),"ParentIndexNumber":([0-9]*),.*"PlaybackPositionTicks":([^,]*),.*"SeriesName":"([^"]*)",.*|\2\t\6 - S\4:E\3 - \1\t\5|p'
+STRIP_UNICODE='s/u0027/-/g;s/u2013/-/g;s/u2014//g;s/u2606/-/g;s/u2019/-/g;s/u00E0//g'
 
 info() {
 	#shellcheck disable=SC2059
@@ -149,7 +150,8 @@ get_curl() {
 }
 
 filter_data() {
-	sed 's|\[{|\n|g;s|},{|\n|g' | sed -nE "$1" | sed -e "s/u0027/-/g" -e 's/u2013/-/g' -e 's/u2014//g' -e 's/u2606/-/g' -e 's/\\//g' -e '/^$/d'
+	sed 's|\[{|\n|g;s|},{|\n|g' | sed -nE "$1" | sed -e "$STRIP_UNICODE" -e 's/\\//g' -e '/^$/d'
+
 }
 
 get_data() {
@@ -249,7 +251,7 @@ nextUp() {
 }
 
 menu() {
-	fzf --prompt="$1" --layout=reverse --border -d'\t' --with-nth=2 --preview="curl -sL '$JF_URL/items/{1}/Images/Primary?fillHeight=450&quality=96' -o - | chafa -f sixels;echo '\033[1;36m{2}\n\033[0m\033[1;32m';curl -s '$JF_URL/Items/{1}?ApiKey=$JF_TOKEN' | sed -nE 's|.*,\"Overview\":\"([^\"]*)\",.*|\1|p' | sed -e 's/u0027/-/g;s/u2013/-/g;s/u2014//g;s/u2606/-/g;s/u2019/-/g' -e '/^$/d' | tr -d '\' 2>/dev/null" --preview-window=right,50%:wrap
+	fzf --prompt="$1" --layout=reverse --border -d'\t' --with-nth=2 --preview="curl -sL '$JF_URL/items/{1}/Images/Primary?fillHeight=450&quality=96' -o - | chafa -f sixels;echo '\033[1;36m{2}\n\033[0m\033[1;32m';curl -s '$JF_URL/Items/{1}?ApiKey=$JF_TOKEN' | sed -nE 's|.*,\"Overview\":\"([^\"]*)\",.*|\1|p' | sed -e '$STRIP_UNICODE' -e '/^$/d' | tr -d '\' 2>/dev/null | tr -s ' '" --preview-window=right,50%:wrap
 }
 
 check_config_auth || configure
