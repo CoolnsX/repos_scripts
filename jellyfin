@@ -5,6 +5,8 @@
 #fixed variables
 config_file="$HOME/.jellyfin-cli-config"
 VERSION="2.0.0"
+GLOBAL_FILTER='s|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"PlaybackPositionTicks":([^,]*),.*|\2\t\1\t\3|p'
+EPISODE_FILTER='s|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"IndexNumber":([0-9]*),"ParentIndexNumber":([0-9]*),.*"PlaybackPositionTicks":([^,]*),.*"SeriesName":"([^"]*)",.*|\2\t\6 - S\4:E\3 - \1\t\5|p'
 
 info() {
 	#shellcheck disable=SC2059
@@ -98,8 +100,8 @@ mpv_jellyfin() {
 
 	success "Playing $title on mpv"
 	url="$JF_URL/Items/$1/Download?ApiKey=$JF_TOKEN"
-	sub="$JF_URL/Videos/$1/$1/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN"
-	! curl -s "$sub" | grep -q "Error processing request" && sub_arg="--sub-file=$sub"
+	get_external_subs "$1"
+	[ -z "$sub" ] || sub_arg="--sub-file=$sub"
 	#shellcheck disable=SC2086
 	nohup mpv --input-ipc-server="$socket" --start="$((playbackPositionTicks / 10000000))" --force-media-title="$title" "$url" $sub_arg >/dev/null 2>&1 &
 	skipPositions=$(get_curl "MediaSegments/$1" | sed 's|}|\n|g' | sed -nE '0,/"Intro","StartTicks"/s|.*"Intro","StartTicks":([0-9]*),"EndTicks":([0-9]*).*|op_start=\1\nop_end=\2|p;0,/"Outro","StartTicks"/s|.*"Outro","StartTicks":([0-9]*),"EndTicks":([0-9]*).*|ed_start=\1\ned_end=\2|p')
@@ -133,7 +135,7 @@ while sleep 5;do
 	[ "\$introSkipped" -eq 0 ] && introSkipped=\$(skipPos "\$introSkipped" "\$positionTicks" "\$op_start" "\$op_end" "Intro Skipped")
 	[ "\$outroSkipped" -eq 0 ] && outroSkipped=\$(skipPos "\$outroSkipped" "\$positionTicks" "\$ed_start" "\$ed_end" "Outro Skipped")
 done
-[ -n "\$positionTicks" ] && curl -s "$JF_URL/Users/$JF_USER_ID/PlayingItems/${1}?positionTicks=\$positionTicks" -X DELETE -H 'Authorization: MediaBrowser Token="$JF_TOKEN"' -H 'Content-Type: application/json'
+[ -n "\$positionTicks" ] && curl -s "$JF_URL/Users/$JF_USER_ID/PlayingItems/${1}?positionTicks=\$positionTicks" -X DELETE -H 'Authorization: MediaBrowser Token=$JF_TOKEN' -H 'Content-Type: application/json'
 rm "$socket"
 rm "\$0"
 EOF
@@ -151,18 +153,18 @@ filter_data() {
 }
 
 get_data() {
-	filter='s|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"PlaybackPositionTicks":([^,]*),.*|\2\t\1\t\3|p'
-	[ -z "$3" ] || filter="$3"
-	get_curl "$1" | filter_data "$filter" | menu "$2"
-	unset filter
-}
-
-cal_size() {
-	printf '%d MB' "$(($1 / 1048576))"
+	get_curl "$1" | filter_data "${3:-$GLOBAL_FILTER}" | menu "$2"
 }
 
 get_file_size() {
-	cal_size "$(get_curl "JellyfinEnhanced/file-size/$JF_USER_ID/$1" | sed -nE 's|.*"size":([0-9]*).*|\1|p')"
+	size=$(get_curl "JellyfinEnhanced/file-size/$JF_USER_ID/$1" | sed -nE 's|.*"size":([0-9]*).*|\1|p')
+	printf '%d MB' "$((size / 1048576))"
+	unset size
+}
+
+get_external_subs() {
+	sub="$JF_URL/Videos/$1/$1/Subtitles/0/Stream.ass?ApiKey=$JF_TOKEN"
+	curl -s "$sub" | grep -q "Error processing request" >/dev/null 2>&1 && sub='' && unset sub
 }
 
 print_urls() {
@@ -173,15 +175,15 @@ print_urls() {
 				ep_id="$(printf '%s' "$episode" | cut -f1)"
 				ep_title="$(printf '%s' "$episode" | cut -f2)"
 				message="$JF_URL/Items/$ep_id/Download?ApiKey=$JF_TOKEN"
-				sub="$JF_URL/Videos/$ep_id/$ep_id/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN"
-				! curl -s "$sub" | grep -q "Error processing request" && message="$(printf '%s\nSub URL: %s' "$message" "$JF_URL/Videos/$ep_id/$ep_id/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN")"
+				get_external_subs "$ep_id"
+				[ -z "$sub" ] || message="$(printf '%s\nSub URL: %s' "$message" "$sub")"
 				printf '\n %s | %s\n%s\n' "$ep_title" "$(get_file_size "$ep_id")" "$message"
 			done
 			;;
 		Movie)
 			message="$JF_URL/Items/$1/Download?ApiKey=$JF_TOKEN"
-			sub="$JF_URL/Videos/$1/$1/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN"
-			! curl -s "$sub" | grep -q "Error processing request" && message="$(printf '%s\nSub URL: %s' "$message" "$JF_URL/Videos/$1/$1/Subtitles/0/0/Stream.ass?ApiKey=$JF_TOKEN")"
+			get_external_subs "$1"
+			[ -z "$sub" ] || message="$(printf '%s\nSub URL: %s' "$message" "$sub")"
 			printf "%s" "$message"
 			;;
 	esac
@@ -189,12 +191,12 @@ print_urls() {
 }
 
 shows() {
-	season=$(get_data "Shows/$id/Seasons?userId=$JF_USER_ID" "Select Season >")
+	season=$(get_data "Shows/$id/Seasons?enableImages=false&userId=$JF_USER_ID" "Select Season >")
 	[ -z "$season" ] && exit 1
 	season_title=$(printf "%s" "$season" | cut -f2)
 	season_id=$(printf "%s" "$season" | cut -f1)
 	[ -n "$only_urls" ] && print_urls "$season_id" "$title - $season_title"
-	episode=$(get_data "Shows/$id/Episodes?seasonId=$season_id&userId=$JF_USER_ID" "[$season_title] Select Episode >" 's|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"IndexNumber":([0-9]*),"ParentIndexNumber":([0-9]*),.*"PlaybackPositionTicks":([^,]*),.*|\2\tS\4:E\3 - \1\t\5|p')
+	episode=$(get_data "Shows/$id/Episodes?enableImages=false&seasonId=$season_id&userId=$JF_USER_ID" "[$season_title] Select Episode >" 's|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"IndexNumber":([0-9]*),"ParentIndexNumber":([0-9]*),.*"PlaybackPositionTicks":([^,]*),.*|\2\tS\4:E\3 - \1\t\5|p')
 	[ -z "$episode" ] && exit 1
 	episode_title=$(printf "%s" "$episode" | cut -f2)
 	episode_id=$(printf "%s" "$episode" | cut -f1)
@@ -204,21 +206,21 @@ shows() {
 }
 
 collection() {
-	collection=$(get_data "UserViews?userId=$JF_USER_ID" "Select Collection >")
+	collection=$(get_data "UserViews" "Select Collection >")
 
 	[ -z "$collection" ] && exit 1
 	collection_id=$(printf '%s' "$collection" | cut -f1)
 	collection_title=$(printf '%s' "$collection" | cut -f2 | sed 's|.$||g')
 
-	recursive="false"
-	filter='s|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"PlaybackPositionTicks":([^,]*),.*|\2\t\1\t\3|p'
-
 	case "$collection_title" in
-		Show) filter='s|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"UnplayedItemCount":[1-9][0-9]*,"PlaybackPositionTicks":([^,]*),.*|\2\t\1\t\3|p' ;;
+		Show)
+			filter='s|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"UnplayedItemCount":[1-9][0-9]*,"PlaybackPositionTicks":([^,]*),.*|\2\t\1\t\3|p'
+			recursive="false"
+			;;
 		Movie) recursive="true" ;;
 	esac
 
-	data=$(get_data "Items?IncludeItemTypes=$collection_title&Recursive=$recursive&ParentId=$collection_id" "Select $collection_title >" "$filter")
+	data=$(get_data "Items?enableImages=false&IncludeItemTypes=$collection_title&Recursive=$recursive&ParentId=$collection_id" "Select $collection_title >" "$filter")
 	[ -z "$data" ] && exit 1
 	id=$(printf "%s" "$data" | cut -f1)
 	title=$(printf "%s" "$data" | cut -f2)
@@ -231,7 +233,7 @@ collection() {
 }
 
 resume() {
-	resume=$(get_data "UserItems/Resume?mediaTypes=Video" "Resume >" 's|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"IndexNumber":([0-9]*),"ParentIndexNumber":([0-9]*),.*"PlaybackPositionTicks":([^,]*),.*"SeriesName":"([^"]*)",.*|\2\t\6 - S\4:E\3 - \1\t\5|p;s|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"PlaybackPositionTicks":([^,]*),.*|\2\t\1\t\3|p')
+	resume=$(get_data "UserItems/Resume?enableImages=false&mediaTypes=Video" "Resume >" "${EPISODE_FILTER};${GLOBAL_FILTER}")
 	[ -z "$resume" ] && exit 1
 	id=$(printf "%s" "$resume" | cut -f1)
 	title=$(printf "%s" "$resume" | cut -f2)
@@ -239,7 +241,7 @@ resume() {
 }
 
 nextUp() {
-	nextup=$(get_data "Shows/NextUp?enableTotalRecordCount=true&disableFirstEpisode=false&enableResumable=true" "Next UP >" 's|^"Name":"([^"]*)",.*,"Id":"([^"]*)".*"IndexNumber":([0-9]*),"ParentIndexNumber":([0-9]*),.*"PlaybackPositionTicks":([^,]*),.*"SeriesName":"([^"]*)",.*|\2\t\6 - S\4:E\3 - \1\t\5|p')
+	nextup=$(get_data "Shows/NextUp?enableImages=false&enableTotalRecordCount=true&disableFirstEpisode=false&enableResumable=true" "Next UP >" "$EPISODE_FILTER")
 	[ -z "$nextup" ] && exit 1
 	id=$(printf "%s" "$nextup" | cut -f1)
 	title=$(printf "%s" "$nextup" | cut -f2)
